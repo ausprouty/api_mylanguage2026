@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World Map with Pins</title>
+    <style>
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+    </style>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap" async defer></script>
+    <script>
+        const countries = [
+            { name: 'Afghanistan', code: 'AFG', lat: 33.93911, lng: 67.709953 },
+            { name: 'Albania', code: 'ALB', lat: 41.153332, lng: 20.168331 },
+            { name: 'Algeria', code: 'DZA', lat: 28.033886, lng: 1.659626 },
+            // Add more countries as needed
+        ];
+
+        function initMap() {
+            const map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 2,
+                center: { lat: 0, lng: 0 },
+            });
+
+            countries.forEach(country => {
+                const marker = new google.maps.Marker({
+                    position: { lat: country.lat, lng: country.lng },
+                    map: map,
+                    title: country.name,
+                });
+
+                const infowindow = new google.maps.InfoWindow({
+                    content: country.name,
+                });
+
+                marker.addListener('mouseover', () => {
+                    infowindow.open(map, marker);
+                });
+
+                marker.addListener('mouseout', () => {
+                    infowindow.close();
+                });
+
+                marker.addListener('click', () => {
+                    window.location.href = `/country/${country.code}`;
+                });
+            });
+        }
+    </script>
+</head>
+<body>
+    <div id="map"></div>
+</body>
+</html>
