@@ -1,3 +1,11 @@
+# Default: treat text files as text, keep LF
+* text=auto eol=lf
+
+# Windows-only scripts (use CRLF on checkout)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+
 *.zip    export-ignore
 *.7z     export-ignore
 *.tar    export-ignore

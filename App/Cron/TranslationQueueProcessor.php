@@ -13,7 +13,7 @@ use App\Contracts\Templates\TemplateAssemblyService;
 use App\Contracts\Translation\TranslationProvider as ProviderContract;
 use App\Services\Database\DatabaseService;
 use App\Services\LoggerService;
-use App\Support\I18n\ExcludeKeyMatcher;
+use App\Support\i18n\ExcludeKeyMatcher;
 
 
 /**
