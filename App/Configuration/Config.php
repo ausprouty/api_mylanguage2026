@@ -15,33 +15,32 @@ class Config
    public static function initialize(): void
     {
         if (self::$config !== null) {
+             console.log ('Config already initialized');
             return; // already initialized
+           
+        }
+        // Decide environment (CLI won't have $_SERVER vars)
+        $envFromVar  = getenv('APP_ENV') ?: getenv('APP_MODE'); // allow override
+        if ($envFromVar) {
+            $environment = strtolower($envFromVar);
+        } else {
+            $server = $_SERVER['SERVER_NAME'] ?? $_SERVER['HTTP_HOST'] ?? '';
+            $environment = (in_array($server, ['localhost','127.0.0.1'], true)) ? 'local' : 'remote';
         }
 
-        // 1) Let an env var win everywhere (cron-friendly)
-        $environment = getenv('APP_ENV');
+        // Where is your /private folder?
+        // A) If /private lives under this directory: App/Configuration/private/...
+        $baseDir = __DIR__;
+        // B) If /private is at project root (sibling of /App), use:
+        // $baseDir = dirname(__DIR__, 2);
 
-        // 2) If not set, decide by context
-        if (!$environment) {
-            $isCli = (PHP_SAPI === 'cli') || defined('STDIN');
+        $envFile = ($environment === 'local') ? '.env.local.php' : '.env.remote.php';
+        $configFile = self::joinPath($baseDir, 'private', $envFile);
 
-            if ($isCli || empty($_SERVER['SERVER_NAME'])) {
-                // CLI typically on server
-                $environment = 'remote';
-            } else {
-                $host = $_SERVER['SERVER_NAME'] ?? '';
-                $environment = in_array($host, ['localhost', '127.0.0.1'], true)
-                    ? 'local'
-                    : 'remote';
-            }
+        if (!is_file($configFile) || !is_readable($configFile)) {
+            throw new \Exception("Configuration file '{$configFile}' not found again.");
         }
-
-        $configFile = __DIR__
-            . ($environment === 'local' ? 'private/.env.local.php' : 'private/.env.remote.php');
-
-        if (!file_exists($configFile)) {
-            throw new \Exception("Configuration file '{$configFile}' not found.");
-        }
+        
 
         self::$config = require $configFile;
 
@@ -154,6 +153,20 @@ class Config
         $s = strtolower((string)$val);
         return in_array($s, ['1','true','yes','on'], true);
     }
+
+
+        /** Join path segments safely, cross-platform. */
+    private static function joinPath(string ...$parts): string
+    {
+        $clean = [];
+        foreach ($parts as $i => $p) {
+            if ($p === '' || $p === null) continue;
+            // trim trailing separators (except keep leading on first part like "C:\")
+            $clean[] = $i === 0 ? rtrim($p, "/\\") : trim($p, "/\\");
+        }
+        return implode(DIRECTORY_SEPARATOR, $clean);
+    }
+
 
      
 
