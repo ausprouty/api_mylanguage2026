@@ -68,7 +68,6 @@ return function (RouteCollector $r) {
      });
  };
 
-    Now your tra
 
 
     // legacy
@@ -138,4 +137,3 @@ return function (RouteCollector $r) {
     });
 
     
-};

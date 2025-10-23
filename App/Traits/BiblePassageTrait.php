@@ -1,5 +1,7 @@
 <?php
 
+namespace App\Traits;
+
 use App\Models\Bible\PassageModel;
 
 trait BiblePassageTrait

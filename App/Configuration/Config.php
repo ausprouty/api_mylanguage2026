@@ -3,6 +3,7 @@
 namespace App\Configuration;
 
 use Exception;
+use App\Services\LoggerService;
 
 class Config
 {
@@ -15,7 +16,7 @@ class Config
    public static function initialize(): void
     {
         if (self::$config !== null) {
-             console.log ('Config already initialized');
+            LoggerService::logInfo('Config-19', 'already initialized');
             return; // already initialized
            
         }

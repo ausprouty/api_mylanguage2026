@@ -32,6 +32,8 @@ rm -rf "${STAGE}/tests" "${STAGE}/.github" || true
 
 # 5) Pack zip
 ( cd "${STAGE}/.." && zip -r "../${ARTIFACT}" "release_${ts}" )
-zip -T "${ARTIFACT}"
+# zip -T "${ARTIFACT}"
+powershell -NoProfile -Command "Compress-Archive -Path '${STAGE}\*' -DestinationPath '${ARTIFACT}' -Force"
+
 
 echo "✅ Built ${ARTIFACT}"
