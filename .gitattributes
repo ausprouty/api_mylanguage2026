@@ -1,0 +1,45 @@
+*.zip    export-ignore
+*.7z     export-ignore
+*.tar    export-ignore
+*.tar.gz export-ignore
+*.tgz    export-ignore
+*.rar    export-ignore
+*.git    export-ignore
+
+
+
+/.git/              export-ignore
+/.gitattributes     export-ignore
+/.github/            export-ignore
+/.gitignore         export-ignore
+/.htaccess           export-ignore
+/.vscode/           export-ignore
+/Documentation/     export-ignore
+/data/              export-ignore
+/Imports/           export-ignore
+/Resources/         export-ignore
+/ScriptsTemporary/  export-ignore
+/bootstrap.php      export-ignore
+/api_mylanguage.git/ export-ignore
+
+/logs/              export-ignore
+/make-release.sh    export-ignore
+/phpunit.xml        export-ignore
+/phpunit.xml.dist   export-ignore
+/tests/             export-ignore
+
+/package.json        export-ignore
+/webpack.config.js   export-ignore
+
+# Manual update when needed
+/vendor/             export-ignore
+#composer.json       export-ignore
+#composer.lock       export-ignore
+
+# Common junk
+/.DS_Store          export-ignore
+/Thumbs.db          export-ignore
+/desktop.ini        export-ignore
+/api_mylanguage.git/ export-ignore
+/api_mylanguage.git/ export-ignore
+/nppBackup/          export-ignore
