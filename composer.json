@@ -1,4 +1,5 @@
 {
+  "license": "proprietary",
     "require": {
         "mpdf/mpdf": "^8.1",
         "endroid/qr-code": "^3.9",
@@ -8,6 +9,9 @@
         "twig/twig": "^3.17",
         "guzzlehttp/psr7": "^2.7",
         "psr/simple-cache": "^3.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10"
     },
     "scripts": {
       "pre-test:di": ["composer dump-autoload -o"],
@@ -19,48 +23,7 @@
       "test:unit": "@php vendor/bin/phpunit --colors=always",
       "test:tclear":"php bin/reset-translation-queue.php",
       "test:translate": [
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40",
-        "set APP_ENV=local && php bin/run-translation-queue.php --seconds=50 --batch=40"
+        "@php bin/run-translation-queue.php --seconds=50 --batch=40"
       ],
       "tests": [
         "composer dump-autoload -o",
@@ -79,8 +42,6 @@
         "App/Libraries/dbt/dbt.inc",
         "App/Libraries/simplehtmldom_1_9_1/simple_html_dom.php"
       ]
-    },
-    "require-dev": {
-        "phpunit/phpunit": "^10"
     }
+  
 }
