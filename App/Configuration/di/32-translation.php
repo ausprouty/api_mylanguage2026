@@ -22,7 +22,7 @@ use App\Repositories\I18nResourcesRepository;
 use App\Repositories\LanguageRepository;
 
 use App\Services\LoggerService;
-use App\Services\BibleStudy\FsTemplateAssemblyService;
+use App\Services\BibleStudy\FsTemplateAssemblyService as TemplateAssemblyConcrete;
 use App\Services\BibleStudy\TextBundleResolver;
 use App\Services\Database\DatabaseService;
 
@@ -114,7 +114,7 @@ return [
             'autoMtEnabled',
             factory(function (\Psr\Container\ContainerInterface $c) {
                 /** @var ProviderSelectorContract $sel */
-+                $sel = $c->get(ProviderSelectorContract::class);
+                $sel = $c->get(ProviderSelectorContract::class);
                 // If the chosen provider is 'null', we consider auto-MT disabled.
                 return $sel->chosenKey() !== 'null';
             })
@@ -129,25 +129,33 @@ return [
             get(CacheInterface::class)
         ),
 
-        // --- Template assembly interface → concrete (choose the first class that exists) ---
-    TemplateAssemblyContract::class => factory(function () {
-        $candidates = [
-            // Most common concrete in this codebase
-            'App\\Services\\BibleStudy\\FsTemplateAssemblyService',
-            // In case your concrete shares the contract name in Services\
-           // 'App\\Services\\Templates\\TemplateAssemblyService',
-            // Add any other known implementations here:
-            // 'App\\Services\\Templates\\DbTemplateAssemblyService',
-        ];
-        foreach ($candidates as $class) {
-            if (class_exists($class)) {
-                return new $class();
+    // --- Template assembly interface → concrete (choose first available)
+    // IMPORTANT: resolve via container so ctor deps get injected.
+    TemplateAssemblyContract::class => factory(
+        function (\Psr\Container\ContainerInterface $c): TemplateAssemblyContract {
+            $candidates = [
+                // Most common concrete in this codebase
+                'App\\Services\\BibleStudy\\FsTemplateAssemblyService',
+                // In case your concrete shares the contract name in Services\
+                // 'App\\Services\\Templates\\TemplateAssemblyService',
+                // Add any other known implementations here:
+                // 'App\\Services\\Templates\\DbTemplateAssemblyService',
+            ];
+            foreach ($candidates as $class) {
+                if (class_exists($class)) {
+                    return $c->get($class); // ← container injects constructor args
+                }
             }
+            throw new \RuntimeException(
+                'No concrete TemplateAssemblyService found. Tried: ' . implode(', ', $candidates)
+            );
         }
-        throw new RuntimeException(
-            'No concrete TemplateAssemblyService found. Tried: ' . implode(', ', $candidates)
-        );
-    }),
+    ),
+
+    // Legacy alias for older type-hints:
+    'App\Contracts\\Templates\\TemplateAssemblyService'
+        => get(TemplateAssemblyContract::class),
+        
     'App\\Services\\BibleStudy\\FsTemplateAssemblyService' => autowire(),
 
 

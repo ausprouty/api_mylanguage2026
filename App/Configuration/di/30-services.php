@@ -8,7 +8,8 @@ use function DI\get;
 use Psr\SimpleCache\CacheInterface;
 
 use App\Configuration\Config;
-use App\Services\LoggerService;
+use App\Contracts\Templates\TemplatesRootProvider as TemplatesRootProviderContract;
+use App\Infra\ConfigTemplatesRootProvider;
 
 // HTTP
 use App\Http\HttpClientInterface;
@@ -36,6 +37,8 @@ use App\Services\BiblePassage\BibleBrainPassageService;
 use App\Services\BiblePassage\BibleGatewayPassageService;
 use App\Services\BiblePassage\BibleWordPassageService;
 use App\Services\BiblePassage\YouVersionPassageService;
+use App\Services\BibleStudy\FsTemplateAssemblyService;
+use App\Services\LoggerService;
 
 return [
 
@@ -49,6 +52,10 @@ return [
         if (class_exists(\App\Infra\NullCache::class)) return new \App\Infra\NullCache();
         throw new \RuntimeException('No CacheInterface implementation available.');
     },
+
+    // Contracts
+
+    TemplatesRootProviderContract::class => autowire(ConfigTemplatesRootProvider::class),
 
     // Factories
     BibleBrainConnectionFactory::class => autowire()
@@ -75,6 +82,7 @@ return [
 
     // Services
     PassageFormatterService::class => autowire(),
+    FsTemplateAssemblyService::class => autowire(),
 
     // Positional pin: (BibleBrainConnectionFactory, LoggerService)
     BibleBrainPassageService::class => create(BibleBrainPassageService::class)
