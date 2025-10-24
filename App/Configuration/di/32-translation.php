@@ -4,6 +4,7 @@ declare(strict_types=1);
 use function DI\autowire;
 use function DI\get;
 use function DI\factory;
+use DI\Factory\RequestedEntry;
 
 use App\Configuration\Config;
 
@@ -127,6 +128,28 @@ return [
             get(TranslationServiceContract::class),
             get(CacheInterface::class)
         ),
+
+        // --- Template assembly interface → concrete (choose the first class that exists) ---
+    TemplateAssemblyContract::class => factory(function () {
+        $candidates = [
+            // Most common concrete in this codebase
+            'App\\Services\\BibleStudy\\FsTemplateAssemblyService',
+            // In case your concrete shares the contract name in Services\
+           // 'App\\Services\\Templates\\TemplateAssemblyService',
+            // Add any other known implementations here:
+            // 'App\\Services\\Templates\\DbTemplateAssemblyService',
+        ];
+        foreach ($candidates as $class) {
+            if (class_exists($class)) {
+                return new $class();
+            }
+        }
+        throw new RuntimeException(
+            'No concrete TemplateAssemblyService found. Tried: ' . implode(', ', $candidates)
+        );
+    }),
+    'App\\Services\\BibleStudy\\FsTemplateAssemblyService' => autowire(),
+
 
     // -------- optional aliases to keep old type-hints working --------
     // If any code still requests these, it will receive the same TranslationSvc instance.

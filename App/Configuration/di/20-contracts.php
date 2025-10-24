@@ -15,7 +15,7 @@ use App\Infra\ConfigTemplatesRootProvider;
 use App\Infra\NullCache;
 
 use App\Services\BibleStudy\TextBundleResolver;
-use App\Services\Templates\TemplateAssemblyService as TemplateAssemblyConcrete;
+use App\Services\BibleStudy\FsTemplateAssemblyService as TemplateAssemblyConcrete;
 
 return [
     // Contract → Concrete: fixes “class is not instantiable” for TemplateAssemblyService
