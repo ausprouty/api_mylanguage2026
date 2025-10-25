@@ -1,47 +1,44 @@
 <?php
 declare(strict_types=1);
 
+// (translation engine + façade only)
+
 use function DI\autowire;
 use function DI\get;
 use function DI\factory;
 
 use Psr\Container\ContainerInterface;
 
-// ===== Translation provider + service wiring (no TemplateAssembly here) =====
+// Contracts (new + legacy)
 use App\Contracts\Language\TranslationProvider as TranslationProviderContract;
 use App\Contracts\Language\ProviderSelector as ProviderSelectorContract;
 use App\Contracts\Language\TranslationService as LangTranslationServiceContract;
 use App\Contracts\Translation\TranslationService as LegacyTranslationServiceContract;
 
+// Services
 use App\Services\Language\I18nTranslationService;
 use App\Services\Language\GoogleTranslationBatchService;
 use App\Services\Language\NullTranslationBatchService;
 
 return [
 
-    // --- Providers are buildable (no ctor params assumed) ---
+    // --- Provider concretes are buildable (no ctor params assumed here) ---
     GoogleTranslationBatchService::class => autowire(),
     NullTranslationBatchService::class   => autowire()
-        ->constructorParameter('prefixMode', true), // keep if your Null provider expects it
+        ->constructorParameter('prefixMode', true), // keep if your Null expects it
 
-    // Map of provider keys to concrete classes (no legacy names here)
+    // --- Provider selection (single source of truth) ---
     'i18n.provider.map' => [
         'null'   => NullTranslationBatchService::class,
         'google' => GoogleTranslationBatchService::class,
     ],
 
-    // Choose a provider once (global). All config keys default safely if missing.
     ProviderSelectorContract::class => factory(function (ContainerInterface $c) {
         /** @var array<string,string> $map */
         $map = $c->get('i18n.provider.map');
 
-        $enabled = $c->has('i18n.autoMt.enabled')
-            ? (bool) $c->get('i18n.autoMt.enabled')
-            : false;
-
-        $requested = $c->has('i18n.autoMt.provider')
-            ? (string) $c->get('i18n.autoMt.provider')   // 'google' | 'null'
-            : 'null';
+        $enabled   = $c->has('i18n.autoMt.enabled')  ? (bool)$c->get('i18n.autoMt.enabled')  : false;
+        $requested = $c->has('i18n.autoMt.provider') ? (string)$c->get('i18n.autoMt.provider') : 'null';
 
         $googleAvailable = class_exists(GoogleTranslationBatchService::class);
 
@@ -57,7 +54,6 @@ return [
         };
     }),
 
-    // Resolve provider contract → chosen concrete
     TranslationProviderContract::class => factory(function (ContainerInterface $c) {
         /** @var ProviderSelectorContract $sel */
         $sel = $c->get(ProviderSelectorContract::class);
@@ -68,7 +64,7 @@ return [
     App\Services\Language\TranslationBatchService::class =>
         get(TranslationProviderContract::class),
 
-    // Canonical translation service
+    // --- Canonical TranslationService (bind both contract namespaces) ---
     LangTranslationServiceContract::class =>
         autowire(I18nTranslationService::class)
             ->constructorParameter(
@@ -78,7 +74,7 @@ return [
                 )
             ),
 
-    // Back-compat for the alternate/legacy contract namespace
+    // Legacy namespace -> same service
     LegacyTranslationServiceContract::class =>
         get(LangTranslationServiceContract::class),
 ];

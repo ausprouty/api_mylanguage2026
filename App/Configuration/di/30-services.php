@@ -4,11 +4,15 @@ declare(strict_types=1);
 use function DI\autowire;
 use function DI\create;
 use function DI\get;
+use function DI\factory;
 
 use Psr\SimpleCache\CacheInterface;
 
 use App\Configuration\Config;
+use App\Contracts\Templates\TemplateAssemblyService as TemplateAssemblyContract;
 use App\Contracts\Templates\TemplatesRootProvider as TemplatesRootProviderContract;
+
+
 use App\Infra\ConfigTemplatesRootProvider;
 
 // HTTP
@@ -37,8 +41,11 @@ use App\Services\BiblePassage\BibleBrainPassageService;
 use App\Services\BiblePassage\BibleGatewayPassageService;
 use App\Services\BiblePassage\BibleWordPassageService;
 use App\Services\BiblePassage\YouVersionPassageService;
-
+use App\Services\BibleStudy\FsTemplateAssemblyService as TemplateAssemblyConcrete;
+use App\Services\Database\DatabaseService;
 use App\Services\LoggerService;
+
+
 
 return [
 
@@ -52,6 +59,15 @@ return [
         if (class_exists(\App\Infra\NullCache::class)) return new \App\Infra\NullCache();
         throw new \RuntimeException('No CacheInterface implementation available.');
     },
+
+    // Build DatabaseService normally
+    DatabaseService::class => autowire(),
+
+    // Provide PDO to repos that type-hint PDO directly
+    \PDO::class => factory(fn($c) =>
+        $c->get(DatabaseService::class)->getPdo() // or ->pdo()
+    ),
+
 
     // Contracts
 
@@ -70,12 +86,16 @@ return [
     // Repositories (no aliasing between these two!)
     LanguageRepository::class => autowire(),
     BibleBrainBibleRepository::class => autowire(),
-
     BiblePassageRepository::class => autowire(NullBiblePassageRepository::class),
 
     // Resolve each to itself; BibleReferenceRepository composes PassageReferenceRepository
     PassageReferenceRepository::class => autowire(),
     BibleReferenceRepository::class   => autowire(), // DI will inject PassageReferenceRepository into its constructor
+   
+    // Template Assembly Contract
+    TemplateAssemblyContract::class => autowire(TemplateAssemblyConcrete::class)->lazy(),
+    'App\Contracts\\Templates\\TemplateAssemblyService' => get(TemplateAssemblyContract::class),
+
 
     // Legacy string key
     'PassageReferenceModel' => get(PassageReferenceModel::class),
