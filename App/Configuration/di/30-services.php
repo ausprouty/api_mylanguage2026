@@ -37,7 +37,7 @@ use App\Services\BiblePassage\BibleBrainPassageService;
 use App\Services\BiblePassage\BibleGatewayPassageService;
 use App\Services\BiblePassage\BibleWordPassageService;
 use App\Services\BiblePassage\YouVersionPassageService;
-use App\Services\BibleStudy\FsTemplateAssemblyService;
+
 use App\Services\LoggerService;
 
 return [
@@ -82,7 +82,7 @@ return [
 
     // Services
     PassageFormatterService::class => autowire(),
-    FsTemplateAssemblyService::class => autowire(),
+  
 
     // Positional pin: (BibleBrainConnectionFactory, LoggerService)
     BibleBrainPassageService::class => create(BibleBrainPassageService::class)

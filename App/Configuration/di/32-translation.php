@@ -4,163 +4,81 @@ declare(strict_types=1);
 use function DI\autowire;
 use function DI\get;
 use function DI\factory;
-use DI\Factory\RequestedEntry;
 
-use App\Configuration\Config;
+use Psr\Container\ContainerInterface;
 
-// --- Contracts (tokens)
-use App\Contracts\Templates\TemplateAssemblyService as TemplateAssemblyContract;
-use App\Contracts\Translation\ProviderSelector as ProviderSelectorContract;
-use App\Contracts\Translation\TranslationProvider as TranslationProviderContract;
-use App\Contracts\Translation\TranslationService as TranslationServiceContract;
+// ===== Translation provider + service wiring (no TemplateAssembly here) =====
+use App\Contracts\Language\TranslationProvider as TranslationProviderContract;
+use App\Contracts\Language\ProviderSelector as ProviderSelectorContract;
+use App\Contracts\Language\TranslationService as LangTranslationServiceContract;
+use App\Contracts\Translation\TranslationService as LegacyTranslationServiceContract;
 
-// --- Repositories & services
-use App\Repositories\I18nStringsRepository;
-use App\Repositories\I18nTranslationsRepository;
-use App\Repositories\I18nClientsRepository;
-use App\Repositories\I18nResourcesRepository;
-use App\Repositories\LanguageRepository;
-
-use App\Services\LoggerService;
-use App\Services\BibleStudy\FsTemplateAssemblyService as TemplateAssemblyConcrete;
-use App\Services\BibleStudy\TextBundleResolver;
-use App\Services\Database\DatabaseService;
-
-use App\Services\Language\I18nStringIndexer;
 use App\Services\Language\I18nTranslationService;
-use App\Services\Language\I18nTranslationQueueWorker;
-use App\Services\Language\NullTranslationBatchService;
 use App\Services\Language\GoogleTranslationBatchService;
-use App\Services\Language\TranslationProviderSelector;
-use App\Services\Language\TranslationBatchService;
-
-// --- Cache
-use Psr\SimpleCache\CacheInterface;
-use Symfony\Component\Cache\Adapter\ArrayAdapter;
-use Symfony\Component\Cache\Psr16Cache;
-
-// Optional back-compat alias if an old FQCN still appears in code
-use App\Contracts\Templates\TemplateAssemblyService as LegacyTemplateAssemblyContract;
-
-// ---------- dynamic provider map ----------
-Config::initialize();
-
-$providerMap = [
-    'null'   => NullTranslationBatchService::class,
-    'google' => class_exists(GoogleTranslationBatchService::class)
-        ? GoogleTranslationBatchService::class
-        : TranslationBatchService::class, // fallback if Google class not present
-    // 'deepl' => DeepLTranslationBatchService::class,
-];
-
-LoggerService::logDebug('32-translation.php', [
-    'autoMtEnabled' => Config::get('i18n.autoMt.enabled', 'true'),
-]);
+use App\Services\Language\NullTranslationBatchService;
 
 return [
 
-    // -------- i18n feature flags / config --------
-    'i18n.autoMt.enabled'      => Config::get('i18n.autoMt.enabled', 'true'),
-    'i18n.autoMt.allowGoogle'  => [], // e.g., ['eng00' => true]
-    'i18n.baseLanguage'        => Config::get('i18n.baseLanguage', 'eng00'),
+    // --- Providers are buildable (no ctor params assumed) ---
+    GoogleTranslationBatchService::class => autowire(),
+    NullTranslationBatchService::class   => autowire()
+        ->constructorParameter('prefixMode', true), // keep if your Null provider expects it
 
-    // -------- core DB services --------
-    DatabaseService::class     => autowire(DatabaseService::class),
-    'db'                       => get(DatabaseService::class),
-    PDO::class                 => factory(fn (DatabaseService $db) => $db->pdo()),
+    // Map of provider keys to concrete classes (no legacy names here)
+    'i18n.provider.map' => [
+        'null'   => NullTranslationBatchService::class,
+        'google' => GoogleTranslationBatchService::class,
+    ],
 
-    // -------- cache (PSR-16) --------
-    CacheInterface::class      => factory(fn () => new Psr16Cache(new ArrayAdapter())),
+    // Choose a provider once (global). All config keys default safely if missing.
+    ProviderSelectorContract::class => factory(function (ContainerInterface $c) {
+        /** @var array<string,string> $map */
+        $map = $c->get('i18n.provider.map');
 
-    // -------- template assembly (only keep if NOT already set in 20-contracts.php) --------
-    //TemplateAssemblyContract::class       => autowire(FsTemplateAssemblyService::class),
-    //LegacyTemplateAssemblyContract::class => get(TemplateAssemblyContract::class), // optional alias
+        $enabled = $c->has('i18n.autoMt.enabled')
+            ? (bool) $c->get('i18n.autoMt.enabled')
+            : false;
 
-    // -------- repositories --------
-    I18nStringsRepository::class      => autowire(),
-    I18nTranslationsRepository::class => autowire(),
-    I18nClientsRepository::class      => autowire(),
-    I18nResourcesRepository::class    => autowire(),
-    LanguageRepository::class         => autowire(),
+        $requested = $c->has('i18n.autoMt.provider')
+            ? (string) $c->get('i18n.autoMt.provider')   // 'google' | 'null'
+            : 'null';
 
-    // -------- translation provider selection --------
-   ProviderSelectorContract::class => autowire(TranslationProviderSelector::class)
-         ->constructorParameter('map', $providerMap),
+        $googleAvailable = class_exists(GoogleTranslationBatchService::class);
 
-    // Resolve Provider to the chosen concrete at runtime (single instance per container)
-    TranslationProviderContract::class => factory(function (\Psr\Container\ContainerInterface $c) {
-        /** @var ProviderSelectorContract $sel */
-        $sel = $c->get(ProviderSelectorContract::class);
-        $cls = $sel->chosenClass();
-        return $c->get($cls);
+        $key = (!$enabled)
+            ? 'null'
+            : (($requested === 'google' && $googleAvailable) ? 'google' : 'null');
+
+        $cls = $map[$key] ?? NullTranslationBatchService::class;
+
+        return new class($cls) implements ProviderSelectorContract {
+            public function __construct(private string $cls) {}
+            public function chosenClass(): string { return $this->cls; }
+        };
     }),
 
-    // Provider concretes
-    GoogleTranslationBatchService::class => autowire(),
-    NullTranslationBatchService::class   => autowire()->constructorParameter('prefixMode', true),
-    TranslationBatchService::class       => autowire(), // generic fallback
+    // Resolve provider contract → chosen concrete
+    TranslationProviderContract::class => factory(function (ContainerInterface $c) {
+        /** @var ProviderSelectorContract $sel */
+        $sel = $c->get(ProviderSelectorContract::class);
+        return $c->get($sel->chosenClass());
+    }),
 
-    // -------- canonical Translation Service binding --------
-       // Anywhere your code type-hints the contract (TranslationServiceContract),
-    // it resolves to I18nTranslationService.
-    TranslationServiceContract::class => autowire(I18nTranslationService::class)
-         ->constructorParameter('baseLanguage', get('i18n.baseLanguage')),
- 
-    // -------- queue worker / indexer --------
-    I18nStringIndexer::class => autowire(),
+    // Back-compat: old class name resolves to the chosen provider
+    App\Services\Language\TranslationBatchService::class =>
+        get(TranslationProviderContract::class),
 
-    I18nTranslationQueueWorker::class => autowire()
-        ->constructorParameter(
-            'autoMtEnabled',
-            factory(function (\Psr\Container\ContainerInterface $c) {
-                /** @var ProviderSelectorContract $sel */
-                $sel = $c->get(ProviderSelectorContract::class);
-                // If the chosen provider is 'null', we consider auto-MT disabled.
-                return $sel->chosenKey() !== 'null';
-            })
-        )
-        ->constructorParameter('autoMtAllowGoogle', get('i18n.autoMt.allowGoogle')),
+    // Canonical translation service
+    LangTranslationServiceContract::class =>
+        autowire(I18nTranslationService::class)
+            ->constructorParameter(
+                'baseLanguage',
+                factory(fn(ContainerInterface $c) =>
+                    $c->has('i18n.baseLanguage') ? $c->get('i18n.baseLanguage') : 'eng00'
+                )
+            ),
 
-    // -------- resolver orchestrator --------
-    TextBundleResolver::class => autowire()
-        ->constructor(
-            get(TemplateAssemblyContract::class),
-            get(TranslationServiceContract::class),
-            get(CacheInterface::class)
-        ),
-
-    // --- Template assembly interface → concrete (choose first available)
-    // IMPORTANT: resolve via container so ctor deps get injected.
-    TemplateAssemblyContract::class => factory(
-        function (\Psr\Container\ContainerInterface $c): TemplateAssemblyContract {
-            $candidates = [
-                // Most common concrete in this codebase
-                'App\\Services\\BibleStudy\\FsTemplateAssemblyService',
-                // In case your concrete shares the contract name in Services\
-                // 'App\\Services\\Templates\\TemplateAssemblyService',
-                // Add any other known implementations here:
-                // 'App\\Services\\Templates\\DbTemplateAssemblyService',
-            ];
-            foreach ($candidates as $class) {
-                if (class_exists($class)) {
-                    return $c->get($class); // ← container injects constructor args
-                }
-            }
-            throw new \RuntimeException(
-                'No concrete TemplateAssemblyService found. Tried: ' . implode(', ', $candidates)
-            );
-        }
-    ),
-
-    // Legacy alias for older type-hints:
-    'App\Contracts\\Templates\\TemplateAssemblyService'
-        => get(TemplateAssemblyContract::class),
-        
-    'App\\Services\\BibleStudy\\FsTemplateAssemblyService' => autowire(),
-
-
-    // -------- optional aliases to keep old type-hints working --------
-    // If any code still requests these, it will receive the same TranslationSvc instance.
-    App\Services\Language\TranslationService::class     => get(TranslationServiceContract::class),
-    App\Contracts\Translation\TranslationService::class => get(TranslationServiceContract::class),
- ];
+    // Back-compat for the alternate/legacy contract namespace
+    LegacyTranslationServiceContract::class =>
+        get(LangTranslationServiceContract::class),
+];
