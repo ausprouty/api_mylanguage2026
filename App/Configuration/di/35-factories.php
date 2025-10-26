@@ -34,7 +34,7 @@ use App\Services\Database\DatabaseService;
 use App\Services\Language\TranslationService;
 use App\Services\LoggerService;
 use App\Services\QrCodeGeneratorService;
-use App\Services\TemplateService;
+
 use App\Services\TwigService;
 use App\Services\VideoService;
 
@@ -88,7 +88,7 @@ return [
 
     // Supporting services
     BiblePassageService::class => autowire(),
-    TemplateService::class     => autowire(),
+
     TranslationService::class  => autowire(),
     TwigService::class         => autowire(),
     LoggerService::class       => autowire(),

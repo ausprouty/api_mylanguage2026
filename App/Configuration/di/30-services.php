@@ -94,8 +94,20 @@ return [
    
     // Template Assembly Contract
     TemplateAssemblyContract::class => autowire(TemplateAssemblyConcrete::class)->lazy(),
-    'App\Contracts\\Templates\\TemplateAssemblyService' => get(TemplateAssemblyContract::class),
 
+    //'App\Contracts\\Templates\\TemplateAssemblyService' => get(TemplateAssemblyContract::class),
+
+    // ==== Template Assembly: single authoritative binding here ====
+    TemplateAssemblyBinding::class => null, // (marker – ignore; see below)
+
+    // Contract → Concrete (lazy). Replace FsTemplateAssemblyService with your real concrete.
+    \App\Contracts\Templates\TemplateAssemblyService::class =>
+        autowire(\App\Services\BibleStudy\FsTemplateAssemblyService::class)->lazy(),
+
+    
+    // ==== Legacy template alias used by some services ====
+    \App\Services\BibleStudy\TemplateService::class => autowire(),
+    'BibleStudyTemplateService' => get(\App\Services\BibleStudy\TemplateService::class),
 
     // Legacy string key
     'PassageReferenceModel' => get(PassageReferenceModel::class),

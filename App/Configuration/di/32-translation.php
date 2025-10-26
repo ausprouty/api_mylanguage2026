@@ -10,10 +10,10 @@ use function DI\factory;
 use Psr\Container\ContainerInterface;
 
 // Contracts (new + legacy)
-use App\Contracts\Language\TranslationProvider as TranslationProviderContract;
-use App\Contracts\Language\ProviderSelector as ProviderSelectorContract;
-use App\Contracts\Language\TranslationService as LangTranslationServiceContract;
-use App\Contracts\Translation\TranslationService as LegacyTranslationServiceContract;
+use App\Contracts\Translation\TranslationProvider as TranslationProviderContract;
+use App\Contracts\Translation\ProviderSelector as ProviderSelectorContract;
+use App\Contracts\Translation\TranslationService as TranslationServiceContract;
+
 
 // Services
 use App\Services\Language\I18nTranslationService;
@@ -33,39 +33,48 @@ return [
         'google' => GoogleTranslationBatchService::class,
     ],
 
+    // Decide provider once; expose both chosenKey() and chosenClass()
     ProviderSelectorContract::class => factory(function (ContainerInterface $c) {
-        /** @var array<string,string> $map */
-        $map = $c->get('i18n.provider.map');
-
-        $enabled   = $c->has('i18n.autoMt.enabled')  ? (bool)$c->get('i18n.autoMt.enabled')  : false;
-        $requested = $c->has('i18n.autoMt.provider') ? (string)$c->get('i18n.autoMt.provider') : 'null';
+        $enabled   = $c->has('i18n.autoMt.enabled')
+            ? (bool) $c->get('i18n.autoMt.enabled') : false;
+        $requested = $c->has('i18n.autoMt.provider')
+            ? (string) $c->get('i18n.autoMt.provider') : 'null'; // 'google' | 'null'
 
         $googleAvailable = class_exists(GoogleTranslationBatchService::class);
 
-        $key = (!$enabled)
-            ? 'null'
-            : (($requested === 'google' && $googleAvailable) ? 'google' : 'null');
+        $key = (!$enabled) ? 'null'
+             : (($requested === 'google' && $googleAvailable) ? 'google' : 'null');
 
+        $map = [
+            'null'   => NullTranslationBatchService::class,
+            'google' => GoogleTranslationBatchService::class,
+        ];
         $cls = $map[$key] ?? NullTranslationBatchService::class;
 
-        return new class($cls) implements ProviderSelectorContract {
-            public function __construct(private string $cls) {}
+        return new class($key, $cls) implements ProviderSelectorContract {
+            public function __construct(
+                private string $key,
+                private string $cls
+            ) {}
+            public function chosenKey(): string   { return $this->key; }
             public function chosenClass(): string { return $this->cls; }
         };
     }),
 
+    // Resolve provider from selector
     TranslationProviderContract::class => factory(function (ContainerInterface $c) {
         /** @var ProviderSelectorContract $sel */
         $sel = $c->get(ProviderSelectorContract::class);
         return $c->get($sel->chosenClass());
     }),
 
-    // Back-compat: old class name resolves to the chosen provider
+    // Back-compat: legacy class name → chosen provider
     App\Services\Language\TranslationBatchService::class =>
         get(TranslationProviderContract::class),
 
     // --- Canonical TranslationService (bind both contract namespaces) ---
-    LangTranslationServiceContract::class =>
+    
+    TranslationServiceContract::class =>
         autowire(I18nTranslationService::class)
             ->constructorParameter(
                 'baseLanguage',
@@ -74,7 +83,4 @@ return [
                 )
             ),
 
-    // Legacy namespace -> same service
-    LegacyTranslationServiceContract::class =>
-        get(LangTranslationServiceContract::class),
 ];

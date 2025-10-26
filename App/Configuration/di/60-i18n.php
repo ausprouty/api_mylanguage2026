@@ -7,7 +7,6 @@ use function DI\autowire;
 use function DI\get;
 use function DI\factory;
 
-use PDO;
 
 // Repositories
 use App\Repositories\I18nStringsRepository;
@@ -31,13 +30,13 @@ return [
     // ---- Repositories (need PDO) ----
     // NOTE: bind PDO once in 30-services.php using DatabaseService->getPdo()
     I18nStringsRepository::class       => autowire()
-        ->constructorParameter('pdo', get(PDO::class)),
+        ->constructorParameter('pdo', get(\PDO::class)),
     I18nTranslationsRepository::class  => autowire()
-        ->constructorParameter('pdo', get(PDO::class)),
+        ->constructorParameter('pdo', get(\PDO::class)),
     I18nClientsRepository::class       => autowire()
-        ->constructorParameter('pdo', get(PDO::class)),
+        ->constructorParameter('pdo', get(\PDO::class)),
     I18nResourcesRepository::class     => autowire()
-        ->constructorParameter('pdo', get(PDO::class)),
+        ->constructorParameter('pdo', get(\PDO::class)),
 
     // LanguageRepository likely needs DatabaseService or PDO; wire as you do elsewhere
     LanguageRepository::class          => autowire(),

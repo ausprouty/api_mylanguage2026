@@ -18,8 +18,7 @@ use App\Services\BibleStudy\TextBundleResolver;
 use App\Services\BibleStudy\FsTemplateAssemblyService as TemplateAssemblyConcrete;
 
 return [
-    // Contract → Concrete: fixes “class is not instantiable” for TemplateAssemblyService
-    TemplateAssemblyContract::class => autowire(TemplateAssemblyConcrete::class),
+    
  
     // Root provider
     TemplatesRootProviderContract::class => autowire(ConfigTemplatesRootProvider::class),
