@@ -93,16 +93,16 @@ return [
     BibleReferenceRepository::class   => autowire(), // DI will inject PassageReferenceRepository into its constructor
    
     // Template Assembly Contract
-    TemplateAssemblyContract::class => autowire(TemplateAssemblyConcrete::class)->lazy(),
+    TemplateAssemblyContract::class => autowire(TemplateAssemblyConcrete::class),
 
     //'App\Contracts\\Templates\\TemplateAssemblyService' => get(TemplateAssemblyContract::class),
 
     // ==== Template Assembly: single authoritative binding here ====
     TemplateAssemblyBinding::class => null, // (marker – ignore; see below)
 
-    // Contract → Concrete (lazy). Replace FsTemplateAssemblyService with your real concrete.
+    // Contract → Concrete . Replace FsTemplateAssemblyService with your real concrete.
     \App\Contracts\Templates\TemplateAssemblyService::class =>
-        autowire(\App\Services\BibleStudy\FsTemplateAssemblyService::class)->lazy(),
+        autowire(\App\Services\BibleStudy\FsTemplateAssemblyService::class),
 
     
     // ==== Legacy template alias used by some services ====
