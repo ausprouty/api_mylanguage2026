@@ -38,6 +38,9 @@ use App\Support\i18n\ExcludeKeyMatcher;
  *    (translationId, stringId, languageCodeGoogle, translatedText,
  *     status, source, translator, reviewedBy, posted, createdAt, updatedAt)
  */
+
+
+
 final class TranslationQueueProcessor
 {
 
@@ -65,6 +68,13 @@ final class TranslationQueueProcessor
       /** @var array<string,string> */
       
     private bool $dryRun = false;
+
+    // counters
+    private int $attempted = 0;
+    private int $succeeded = 0;
+    private int $retryable = 0;
+    private int $permanent = 0;
+
 
     
 
@@ -105,6 +115,7 @@ final class TranslationQueueProcessor
                 return;
             }
         }
+
 
         // Log the effective scope and mode at the start of each cycle.
         LoggerService::logDebug(
@@ -245,6 +256,11 @@ final class TranslationQueueProcessor
  
 
         $this->logger::logInfo('TranslationQueueProcessor-66', 'started process');
+                // reset per-run stats
+        $this->attempted = 0;
+        $this->succeeded = 0;
+        $this->retryable = 0;
+        $this->permanent = 0;
         $started = microtime(true);
         try {
             $jobs = $this->lockBatch();
@@ -263,6 +279,14 @@ final class TranslationQueueProcessor
         foreach ($jobs as $job) {
             $this->processOne($job);
         }
+             // Emit per-run stats before final timing line
+        $this->logger::logInfo('TQP: stats', [
+            'attempts'  => $this->attempted,
+            'success'   => $this->succeeded,
+            'retry'     => $this->retryable,
+            'permanent' => $this->permanent,
+        ]);
+ 
 
         $elapsedMs = (int) ((microtime(true) - $started) * 1000);
         $this->logger::logInfo('TQP: batch complete', [
@@ -384,10 +408,11 @@ final class TranslationQueueProcessor
      */
     private function processOne(array $row): void
     {
+        ++$this->attempted;
         $id     = (int) $row['id'];
         if ($this->debugProcessor){
             $this->logger::logDebug('TranslationQueueProceessor-206', $row);
-             $this->logger::logDebug('TranslationQueueProceessor-208', $id);
+            $this->logger::logDebug('TranslationQueueProceessor-208', $id);
         }
         $sourceLang = $row['sourceLanguageCodeGoogle'] ?: 'en';
         $targetLang = $row['targetLanguageCodeGoogle'];
@@ -443,6 +468,7 @@ final class TranslationQueueProcessor
             );
 
             $this->deleteQueueRow($id);
+            ++$this->succeeded;
             //$this->logger->logInfo('TQ-acked', ['id' => $id]);
             return;
         }
@@ -464,12 +490,14 @@ final class TranslationQueueProcessor
 
         if ($transient) {
             $this->logger->logWarning('TQ-retry', $diag);
+            ++$this->retryable;
             $this->requeueWithBackoff($job);
             return;
         }
 
         // Permanent failure → dead-letter (or mark failed without retry)
         $this->logger->logError('TQ-dead', $diag);
+        ++$this->permanent;
         $this->deadLetter($id, $diag);
         return;
 
@@ -493,12 +521,27 @@ final class TranslationQueueProcessor
     }
 
 
-    private function isTransientFailure(int $http, ?string $err): bool
+       /**
+     * Decide if a failure should be retried (transient).
+     *
+     * Inputs:
+     *   $http — HTTP status code; null when no HTTP layer is present.
+     *   $err  — Optional error text; scanned for transient hints.
+     *
+     * Rules (first match wins):
+     *   0          → transport/network (retry)
+     *   408, 429   → timeout / rate limit (retry)
+     *   5xx        → upstream/server error (retry)
+     *   /timeout|temporar|reset|quota|rate/i → retry
+     * Otherwise: permanent (no retry).
+     */
+    private function isTransientFailure(?int $http, ?string $err): bool
     {
-        if ($http === 0) return true;           // network/transport
-        if ($http === 408) return true;         // request timeout
-        if ($http === 429) return true;         // rate limited
-        if ($http >= 500) return true;          // server errors
+        if ($http === 0) return true;                  // network/transport
+        if ($http === 408) return true;                // request timeout
+        if ($http === 429) return true;                // rate limited
+        if ($http !== null && $http >= 500) return true; // server errors
+
         if ($err && preg_match('/timeout|temporar|reset|quota|rate/i', $err)) {
             return true;
         }
@@ -725,11 +768,13 @@ final class TranslationQueueProcessor
     private function resolveResourceId(
         string $type,
         string $subject,
-        ?string $variant
+        string $variant = 'default'
     ): int {
         if (!$this->pdo instanceof \PDO) {
             throw new \RuntimeException('PDO not set');
         }
+        $variant = \App\Support\i18n\Normalize::normalizeVariant($variant);
+
         // Prefer MySQL/MariaDB NULL-safe equality (<=>) to simplify the WHERE
         $sel = $this->pdo->prepare(
             "SELECT resourceId

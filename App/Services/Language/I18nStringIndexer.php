@@ -76,8 +76,9 @@ final class I18nStringIndexer
     // Internals
     // ---------------------------------------------------------------------
 
-    private function resolveOrCreateResource(string $type, string $subject, ?string $variant): int
+    private function resolveOrCreateResource(string $type, string $subject, string $variant = 'default'): int
     {
+        $variant = \App\Support\i18n\Normalize::normalizeVariant($variant);
         $rid = $this->db->fetchValue(
             'SELECT resourceId
                FROM i18n_resources

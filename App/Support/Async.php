@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+// file: App/Support/Async.php
 
 namespace App\Support;
 
@@ -106,38 +107,59 @@ final class Async
 
     private static function detectPhpBinary(): string
     {
-        // 1) Allow explicit override via env (set in .env or Apache SetEnv)
+        // Helper: confirm a binary is the PHP CLI
+        $isCli = static function (string $bin): bool {
+            // quick bail-out if it smells like php-fpm
+            if (preg_match('~php-fpm($|[^a-z])~i', $bin)) {
+                return false;
+            }
+            $out = [];
+            $rc  = 0;
+            @exec(escapeshellcmd($bin) . ' -r "echo PHP_SAPI;"', $out, $rc);
+            return $rc === 0 && implode('', $out) === 'cli';
+        };
+
+        // 1) Explicit override (env or Apache SetEnv)
         $env = getenv('APP_PHP_BIN');
         if (is_string($env) && $env !== '') {
             $hit = self::which($env);
-            if ($hit !== null) {
+            if ($hit !== null && $isCli($hit)) {
                 return $hit;
             }
         }
 
-        // 2) Use PHP_BINARY unless it's Apache's httpd.exe/apache.exe
-        if (defined('PHP_BINARY') && PHP_BINARY) {
-            $bin = PHP_BINARY;
-            if (!preg_match('/(?:httpd|apache)\.exe$/i', $bin)) {
-                $hit = self::which($bin);
-                if ($hit !== null) {
-                    return $hit;
-                }
+        // 2) Known cPanel EA-PHP paths (prefer exact major/minor first)
+        foreach ([
+            '/opt/cpanel/ea-php82/root/usr/bin/php',
+            '/opt/cpanel/ea-php81/root/usr/bin/php',
+            '/opt/cpanel/ea-php80/root/usr/bin/php',
+        ] as $cand) {
+            $hit = self::which($cand);
+            if ($hit !== null && $isCli($hit)) {
+                return $hit;
             }
         }
 
-        // 3) Try PHP_BINDIR/php(.exe)
+        // 3) PHP_BINARY if it’s really the CLI (not php-fpm)
+        if (defined('PHP_BINARY') && PHP_BINARY) {
+            $hit = self::which(PHP_BINARY);
+            if ($hit !== null && $isCli($hit)) {
+                return $hit;
+            }
+        }
+
+        // 4) PHP_BINDIR/php(.exe)
         if (defined('PHP_BINDIR') && PHP_BINDIR) {
             $php = rtrim(PHP_BINDIR, '\\/')
                 . DIRECTORY_SEPARATOR
                 . (DIRECTORY_SEPARATOR === '\\' ? 'php.exe' : 'php');
             $hit = self::which($php);
-            if ($hit !== null) {
+            if ($hit !== null && $isCli($hit)) {
                 return $hit;
             }
         }
 
-        // 4) Common Windows installs
+        // 5) Common Windows installs
         if (DIRECTORY_SEPARATOR === '\\') {
             foreach ([
                 'C:\\ampp82\\php\\php.exe',
@@ -145,15 +167,20 @@ final class Async
                 'C:\\Program Files\\PHP\\php.exe',
             ] as $cand) {
                 $hit = self::which($cand);
-                if ($hit !== null) {
+                if ($hit !== null && $isCli($hit)) {
                     return $hit;
                 }
             }
         }
 
-        // 5) Fall back to PATH
+        // 6) PATH fallback: first php on PATH that reports cli
         $hit = self::which('php');
-        return $hit ?? 'php';
+        if ($hit !== null && $isCli($hit)) {
+            return $hit;
+        }
+
+        // Last resort: return literal 'php' and hope PATH resolves to CLI
+        return 'php';
     }
 
 

@@ -176,7 +176,7 @@ final class I18nTranslationQueueWorker
     }
 
     /** Resolve resourceId for (type, subject, variant). */
-    private function resolveResourceId(string $type, string $subject, ?string $variant): int
+    private function resolveResourceId(string $type, string $subject, string $variant='default'): int
     {
         $rid = $this->db->fetchValue("
             SELECT resourceId

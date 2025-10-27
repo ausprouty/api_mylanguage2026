@@ -78,7 +78,7 @@ final class I18nResourcesRepository
     public function getIdByTypeSubjectVariant(
         string $resourceType,
         string $resourceSubject,
-        ?string $resourceVariant
+        string $resourceVariant = 'default'
     ): ?int {
         $sql = 'SELECT `resourceId` '
             . 'FROM `i18n_resources` '
@@ -106,9 +106,11 @@ final class I18nResourcesRepository
     public function ensureIdByTypeSubjectVariant(
         string $resourceType,
         string $resourceSubject,
-        ?string $resourceVariant,
+        string $resourceVariant = 'default',
         ?string $description = null
     ): int {
+        $variant = \App\Support\i18n\Normalize::normalizeVariant($resourceVariant);
+
         $id = $this->getIdByTypeSubjectVariant(
             $resourceType,
             $resourceSubject,

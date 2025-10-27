@@ -14,6 +14,17 @@ return function (RouteCollector $r) {
    
     $container = require __DIR__ . '/../Configuration/container.php';
 
+    // root
+    $router->addRoute('GET', '/', static function (): void {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(200);
+        echo json_encode([
+            'ok'      => true,
+            'service' => 'api2.mylanguage.net.au',
+            'time'    => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format(DateTimeInterface::RFC3339),
+        ]);
+    });
+
     // Minimal debug endpoint: GET {basePath}/_debug/ping
     $r->addRoute('GET', '/api_mylanguage2026/_debug/ping2', function () {
         header('Content-Type: text/plain');

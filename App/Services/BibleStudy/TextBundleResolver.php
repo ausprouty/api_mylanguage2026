@@ -23,12 +23,13 @@ final class TextBundleResolver
         string $kind,
         string $subject,
         string $languageCodeHL,
-        ?string $variant
+        string $variant = 'default'
     ): array {
         $ver = $this->templates->version($kind, $subject);
 
         $tplKey = $this->tplKey($kind, $subject, $ver);
         $base = $this->cache->get($tplKey);
+        
 
         if (!is_array($base)) {
             $base = $this->templates->get($kind, $subject);
@@ -36,7 +37,8 @@ final class TextBundleResolver
         }
 
         $isBaseLang  = ($languageCodeHL === $this->translator->baseLanguage());
-        $hasVariant  = ($variant !== null && $variant !== '');
+        $variant = \App\Support\i18n\Normalize::normalizeVariant($variant);
+        $hasVariant  = $variant !== 'default';
         $normVariant = $hasVariant ? $variant : 'default';
 
         // Map HTTP/template tuple → DB resource tuple expected by i18n tables
