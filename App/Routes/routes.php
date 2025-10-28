@@ -5,6 +5,8 @@ use App\Configuration\Config;
 use App\Responses\JsonResponse;
 use App\Services\LoggerService;
 
+
+
 return function (RouteCollector $r) {
     // Normalize basePath to: ""  or "/something" (no trailing slash)
     $rawBase = (string) (Config::get('base_path') ?? '');
@@ -15,7 +17,7 @@ return function (RouteCollector $r) {
     $container = require __DIR__ . '/../Configuration/container.php';
 
     // root
-    $router->addRoute('GET', '/', static function (): void {
+    $r->addRoute('GET', '/', static function (): void {
         header('Content-Type: application/json; charset=utf-8');
         http_response_code(200);
         echo json_encode([

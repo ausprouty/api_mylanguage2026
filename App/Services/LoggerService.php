@@ -50,6 +50,9 @@ class LoggerService
     private static ?bool $mirrorEnabled = null;
     private static ?string $mirrorFile  = null;
 
+    // setting for debugging translation files
+     private static ?bool $i18nDebugEnabled = null;
+
     /** Level mapping: debug(10) < info(20) < warning(30) < error(40) < critical(50) */
     private static function levelNum(string $lvl): int
     {
@@ -216,6 +219,61 @@ class LoggerService
         self::logDebug($tag, self::toJson($value, $pretty));
     }
 
+    
+    /**
+     * Debug logging for the i18n/translation pipeline.
+     *
+     * Controlled by Config key: logging.i18n_debug (bool).
+     * If disabled, this is a no-op.
+     *
+     * $ctx may be an array OR a callable returning array so you can
+     * defer building expensive context until logging is enabled.
+     *
+     * @param string                 $event
+     * @param array|callable():array $ctx
+     */
+    public static function logDebugI18n(
+        string $event,
+        array|callable $ctx = []
+    ) : void {
+        if (!self::isI18nDebugEnabled()) {
+            return;
+        }
+        if (is_callable($ctx)) {
+            $ctx = $ctx();
+            if (!is_array($ctx)) {
+                $ctx = [
+                    '_note' =>
+                        'logDebugI18n context callable did not return array',
+                ];
+            }
+        }
+        self::logDebug($event, $ctx);
+    }
+
+    /**
+     * True when logging.i18n_debug is on.
+     * Value is cached after first read for performance.
+     */
+    public static function isI18nDebugEnabled() : bool
+    {
+        if (self::$i18nDebugEnabled === null) {
+            self::$i18nDebugEnabled =
+                \App\Configuration\Config::getBool('logging.i18n_debug', false);
+        }
+        return self::$i18nDebugEnabled;
+    }
+
+    /**
+     * Allow tests/CLI to force or clear the flag cache at runtime.
+     * Pass null to clear and re-read from Config on next use.
+     */
+    public static function setI18nDebugEnabled(?bool $state) : void
+    {
+        self::$i18nDebugEnabled = $state;
+    }
+ 
+
 
     // ------------------------------- Core --------------------------------
 
@@ -256,11 +314,9 @@ class LoggerService
             $ctx = self::enrichWithCaller($ctx);
         }
  
-        // Timestamp with timezone abbreviation for clarity in multi-host setups
-        $ts   = (new \DateTimeImmutable('now'))
-                    ->format('Y-m-d H:i:s T');
-        $line = '[' . $ts . ']'
-            . ' [' . strtoupper($level) . ']'
+         // Let the destination (e.g., Apache/Nginx error_log) add its own timestamp.
+        // Keep our line clean to avoid duplicate date prefixes.
+        $line =  ' [' . strtoupper($level) . ']'
             . ' [' . $context . '] '
             . self::compactOneLine($msg)
             . ' ' . self::encodeJsonSafe($ctx);

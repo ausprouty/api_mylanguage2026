@@ -56,7 +56,8 @@ class I18nTranslationService implements TranslationServiceContract
                                  ?? Config::get('logging.i18n_debug', false));
         
                                  // do not log errrors in this page
-        $dbg = false;
+        Log::logDebug('I18nTranslationService-59 debug is ',  $dbg);
+       
         // Choose type by kind
         $resourceType = ($kind === 'interface') ? 'interface' : 'commonContent';
 

@@ -37,6 +37,7 @@ class GoogleTranslationBatchService implements TranslationProvider
             LoggerService::logError('GoogleTranslationBatchService-36', 'Missing Google API key.');
             throw new \RuntimeException('Google API key is required.');
         }
+        $this->debugService = Config::get('logging.i18n_debug') ?? false;
     }
 
         /**
@@ -92,11 +93,13 @@ class GoogleTranslationBatchService implements TranslationProvider
         string $sourceLanguage = 'en',
         string $format = 'text'
     ): array {
-        //LoggerService::logDebug('GoogleTranslationBatchService-90', 
-        //    ['texts' =>$texts,
-       //     'targetLanguage' => $targetLanguage,
-        //    'sourceLanguage'=> $sourceLanguage,
-        //    'format'=>$format] );
+        if ($this->debugService){
+            LoggerService::logDebug('GoogleTranslationBatchService-90', 
+                ['texts' =>$texts,
+                'targetLanguage' => $targetLanguage,
+                'sourceLanguage'=> $sourceLanguage,
+                'format'=>$format] );
+        }
         if (empty($texts)) {
             LoggerService::logDebug('GoogleTranslationBatchService-96', 'No Texts' );
            // Always return a 5-tuple: ok, list, httpCode, err, len

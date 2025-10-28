@@ -9,7 +9,7 @@ $__projectRoot = dirname(__DIR__);                 // …/api2.mylanguage.net.au
 $__logsDir     = $__projectRoot . '/logs';
 $__defaultLog  = $__logsDir . '/translation-a.log';
 $__log         = getenv('LOG_FILE') ?: $__defaultLog;   // ENV wins; otherwise project logs
- $__lock        = $__log . '.lock';
+$__lock        = $__log . '.lock';
 $__lock        = $__log . '.lock';
 $__heartbeat   = $__logsDir . '/translation-cron.last';
 @mkdir($__logsDir, 0775, true);
@@ -229,7 +229,6 @@ function makeTranslationQueueProcessor(): TranslationQueueProcessor
     foreach ($defs as $def) {
         if (is_file($def)) {
             $builder->addDefinitions($def);
-             log_line('di add ' . $def);
             $loadedAny = true;
         } else {
             log_line('di skip ' . $def);
@@ -302,6 +301,8 @@ try {
         $elapsed,
         $mem / (1024 * 1024)
     ));
+    // Insert a blank line
+    log_line('');
     exit(0);
 
 } catch (\Throwable $e) {

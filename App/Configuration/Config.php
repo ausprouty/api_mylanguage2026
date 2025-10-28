@@ -141,19 +141,42 @@ class Config
 
         return self::get('base_url') . $path;
     }
-    
+        /**
+     * Fetch a boolean config value with robust coercion.
+     * Accepts true/false, 1/0, "true/false", "on/off", "yes/no" (case-insensitive).
+     * Unrecognised values fall back to $default.
+     */
     public static function getBool(string $key, bool $default = false): bool
     {
-        $val = self::get($key);
-        if ($val === null) {
-            // Don’t raise PHP warnings; just log once if you want
-            error_log("Config: missing '{$key}', using default=" . ($default ? 'true' : 'false'));
+        $val = null;
+        try {
+            $val = self::get($key);
+        } catch (\Throwable $e) {
+            // Missing or loader error — use default (optionally log once)
+            error_log(
+                "Config: missing '{$key}', using default=" .
+                ($default ? 'true' : 'false')
+            );
             return $default;
         }
-        if (is_bool($val)) return $val;
-        $s = strtolower((string)$val);
-        return in_array($s, ['1','true','yes','on'], true);
-    }
+
+        if ($val === null) {
+            return $default;
+        }
+        if (is_bool($val)) {
+            return $val;
+        }
+        if (is_int($val)) {
+            return $val !== 0;
+        }
+        if (!is_scalar($val)) {
+            return $default; // arrays/objects: refuse and use default
+        }
+
+        $s = trim((string) $val);
+        $parsed = filter_var($s, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        return $parsed ?? $default;
+    }    
 
 
         /** Join path segments safely, cross-platform. */
