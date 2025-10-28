@@ -201,26 +201,49 @@ final class TranslationQueueProcessor
             $priorityExpr = 'CASE WHEN ' . implode(' AND ', $priorityParts) . ' THEN 0 ELSE 1 END';
         }
 
+        
+       
+        // -- ORDER BY safety: normalize & whitelist ---------------------------------
+        // Accepts string keys like: id | queuedAt | priority | runAfter (extendable)
+        // Guard against values coming in as arrays/bools/ints from getopt/config.
+        $rawPriorityExpr = $priorityExpr;
+        if (is_array($priorityExpr)) {
+            // e.g., Array([0] => 1) from getopt short flags
+            $priorityExpr = reset($priorityExpr);
+        }
+        // Cast to string and trim
+        $priorityExpr = trim((string)$priorityExpr);
+        // Map friendly keys to safe SQL fragments (no user-supplied SQL allowed)
+        $allowedOrderMap = [
+            'id'       => 'id',
+            'queuedAt' => 'queuedAt',
+            'priority' => 'priority',
+            'runAfter' => 'runAfter',   // add if you have this column and want it
+        ];
+        // Provide a sane default if value is empty or not recognized
+        if ($priorityExpr === '' || !isset($allowedOrderMap[$priorityExpr])) {
+            LoggerService::logError('TQP.Bad_priorityExpr', [
+                'received' => $rawPriorityExpr,
+                'normalized' => $priorityExpr,
+                'allowed' => array_keys($allowedOrderMap),
+                'note' => 'Falling back to default "queuedAt"',
+            ]);
+            $priorityExpr = 'queuedAt';
+        }
+        $priorityExprSql = $allowedOrderMap[$priorityExpr];
+
         // Typical tie-breakers after priority:
         //   - higher "priority" (your column) first (DESC)
         //   - older queuedAt first (ASC)
         // NOTE: MySQL native prepares do not allow binding LIMIT/OFFSET.
         // Inline a safe int to avoid returning zero rows.
-       
-        // Whitelist the ORDER BY expression to avoid injection
-        $allowedOrder = ['id','queuedAt','priority']; // extend as needed
-        if (!in_array($priorityExpr, $allowedOrder, true)) {
-            LoggerService::logError('TQP.Bad_priorityExpr', [ $priorityExpr]);
-            throw new \InvalidArgumentException("Bad priorityExpr: {$priorityExpr}");
-        }
-
         $limit = max(1, (int)($this->batchSize ?? 100));
         $sql = "
             SELECT id, resourceType, subject, variant, stringKey
             FROM i18n_translation_queue
             WHERE {$whereSql}
             ORDER BY
-                {$priorityExpr} ASC,
+                {$priorityExprSql} ASC,
                 priority DESC,
                 queuedAt ASC
             LIMIT {$limit}
