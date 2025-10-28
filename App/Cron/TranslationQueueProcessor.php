@@ -215,6 +215,10 @@ final class TranslationQueueProcessor
         $priorityExpr = trim((string)$priorityExpr);
         // Map friendly keys to safe SQL fragments (no user-supplied SQL allowed)
         $allowedOrderMap = [
+            '1'        => 'id',
+            '2'        => 'queuedAt',
++           '3'        => 'priority',
++           '4'        => 'runAfter',
             'id'       => 'id',
             'queuedAt' => 'queuedAt',
             'priority' => 'priority',
