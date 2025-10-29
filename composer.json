@@ -15,6 +15,9 @@
     },
     "scripts": {
       "pre-test:di": ["composer dump-autoload -o"],
+      "release": [
+        "@php scripts/release.php"
+      ],
       "test:di": [
         "composer dump-autoload -o",
         "@php bin/di-smoke.php"
@@ -31,6 +34,9 @@
       ],
       "migrate": "php scripts/run_migrations.php",
       "bb:cleanup": "php bin/biblebrain-cleanup-bibles.php"
+    },
+    "scripts-descriptions": {
+        "release": "Tags a timestamped release, pushes with tags, then runs build-release.sh"
     },
 
     "autoload": {
