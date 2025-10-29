@@ -233,22 +233,29 @@ class LoggerService
      * @param array|callable():array $ctx
      */
     public static function logDebugI18n(
-        string $event,
-        array|callable $ctx = []
+       string $tag,
+       string|int|float|bool|array|callable|null $ctx = null
     ) : void {
         if (!self::isI18nDebugEnabled()) {
             return;
         }
-        if (is_callable($ctx)) {
-            $ctx = $ctx();
-            if (!is_array($ctx)) {
-                $ctx = [
-                    '_note' =>
-                        'logDebugI18n context callable did not return array',
-                ];
+        $payload = [];
+        if (is_array($ctx)) {
+            $payload = $ctx;
+        } elseif (is_callable($ctx)) {
+            try {
+                $v = $ctx();
+                $payload = is_array($v) ? $v : ['msg' => (string) $v];
+            } catch (\Throwable $e) {
+                $payload = ['err' => $e->getMessage()];
             }
         }
-        self::logDebug($event, $ctx);
+        elseif ($ctx !== null) {
+            // Accept scalars like int/float/bool/string
+            // and anything stringable.
+            $payload = ['msg' => (string) $ctx];
+         }
+        self::logDebug('i18n.' . $tag, $payload);
     }
 
     /**

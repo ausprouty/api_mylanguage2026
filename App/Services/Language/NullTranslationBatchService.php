@@ -31,7 +31,12 @@ final class NullTranslationBatchService implements TranslationProvider
         string $format = 'text'
     ): array {
         $out = [];
-        LoggerService::logDebug('NullTranslationBatchService', 'Ran this service for translate');
+        LoggerService::logDebugI18n('NullTranslationBatchService', [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ , 
+            'message'  => 'Ran this service for translate'
+        ]);
         foreach ($texts as $t) {
             $s = (string) $t;
             if ($this->prefixMode && $s !== '') {

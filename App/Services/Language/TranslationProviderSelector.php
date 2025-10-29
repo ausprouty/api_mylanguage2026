@@ -5,14 +5,16 @@ namespace App\Services\Language;
 
 use App\Contracts\Translation\ProviderSelector as Contract;
 use App\Contracts\Translation\TranslationProvider;
+use App\Services\LoggerService;
+use App\Configuration\Config;
 
 /**
- * Selects a TranslationProvider based on config/env.
+ * Selects a TranslationProvider based on config/environment.
  *
  * Policy:
- * - If i18n.autoMt.enabled = false  -> 'null'
- * - If env in ['local','dev']       -> 'google' only if provider === 'google', else 'null'
- * - Else (remote/other)             -> honor provider; default 'google'
+ * If i18n.autoMt (or i18n.autoMt.enabled) is false -> 'null'
+ * - If environment in ['local','dev'] -> 'google' only if provider==='google'
+ * - Else (remote/other) -> honor provider; default 'google'
  *
  * The $get callable allows deterministic tests (defaults to Config::get).
  */
@@ -21,28 +23,20 @@ final class TranslationProviderSelector implements Contract
     /** @var array<string, class-string<TranslationProvider>> */
     private array $map;
 
-    /** @var callable(string,mixed):mixed */
-    private $get;
+   
 
     /**
      * @param array<string, class-string<TranslationProvider>> $map
-     * @param callable(string, mixed):mixed|null $get  Usually Config::get
-     */
-    public function __construct(array $map, ?callable $get = null)
+    */
+   public function __construct(array $map)
     {
         $this->map = $map;
-        $this->get = $get ?? static fn(string $k, mixed $d) => \App\Configuration\Config::get($k, $d);
     }
 
-    /** Convenience wrapper for the injected getter */
-    private function cfg(string $key, mixed $default = null): mixed
-    {
-        return ($this->get)($key, $default);
-    }
+    
 
     private function cfgBool(string $key, bool $default = false): bool
     {
-        $v = $this->cfg($key, $default);
         if (is_bool($v)) return $v;
         $s = strtolower((string)$v);
         if (in_array($s, ['1','true','yes','on'], true))  return true;
@@ -55,17 +49,27 @@ final class TranslationProviderSelector implements Contract
      */
     public function chosenKey(): string
     {
-        // env is set by Config::initialize() as 'env'; fall back to 'environment'
-        $env = strtolower((string) $this->cfg('env', $this->cfg('environment', 'remote')));
-
-        // If disabled, always null
-        if (!$this->cfgBool('i18n.autoMt.enabled', true)) {
+        // Prefer 'environment', fall back to 'env', default 'remote'
+        $env = (string) Config::get('environment', Config::get('env', 'remote'));
+        $env = strtolower($env);
+        LoggerService::logDebugI18n('TPS.env', [
+            'env' => $env,
+        ]);
+         // Read either i18n.autoMt or i18n.autoMt.enabled (both supported)
+        $autoMt = Config::get('i18n.autoMt', Config::get('i18n.autoMt.enabled', true));
+        if (!$this->boolVal($autoMt, true)) {
             return 'null';
         }
 
-        // Base default by env
-        $defaultByEnv = in_array($env, ['local','dev'], true) ? 'null' : 'google';
-        $provider = strtolower((string) $this->cfg('i18n.autoMt.provider', $defaultByEnv));
+        // Default provider depends on env
+        $defaultByEnv = in_array($env, ['local','dev'], true)
+            ? 'null'
+            : 'google';
+        $provider = (string) Config::get('i18n.autoMt.provider', $defaultByEnv);
+        $provider = strtolower($provider);
+        LoggerService::logDebugI18n('TPS.provider', [
+            'provider' => $provider,
+        ]);
 
         if (in_array($env, ['local','dev'], true)) {
             // Dev/local: explicit opt-in to Google; otherwise null for safety
@@ -87,7 +91,7 @@ final class TranslationProviderSelector implements Contract
 
     /**
      * Back-compat for App\Contracts\Translation\ProviderSelector.
-     * @return class-string<\App\Contracts\Translation\TranslationProvider>
+     * @return class-string<TranslationProvider>
      */
     public function chosenClass(): string
     {

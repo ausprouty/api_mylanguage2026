@@ -34,7 +34,7 @@ class GoogleTranslationBatchService implements TranslationProvider
     {
         $this->apiKey = (string) Config::get('api.google_translate_apiKey');
         if ($this->apiKey === '') {
-            LoggerService::logError('GoogleTranslationBatchService-36', 'Missing Google API key.');
+            LoggerService::logError('GTBS-36', 'Missing Google API key.');
             throw new \RuntimeException('Google API key is required.');
         }
         $this->debugService = Config::get('logging.i18n_debug') ?? false;
@@ -57,7 +57,10 @@ class GoogleTranslationBatchService implements TranslationProvider
         string $format = 'text'
     ): array {
       
-        LoggerService::logDebugI18n('GoogleTranslateService-56', [
+        LoggerService::logDebugI18n('GoogleTranslateService.translate', [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
             'texts' => $texts,
             'targetLanguage' => $targetLanguage,
             'sourceLanguage' => $sourceLanguage,
@@ -72,7 +75,11 @@ class GoogleTranslationBatchService implements TranslationProvider
             $format
         );
         $translated = $list[0] ?? '';
-        LoggerService::logDebugI18n('GoogleTranslationBatchService-70', $translated);
+        LoggerService::logDebugI18n('GTBS-translated', [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'translated' => $translated]);
         return [$ok, $translated, $code, $err, $len];
     }
 
@@ -91,14 +98,24 @@ class GoogleTranslationBatchService implements TranslationProvider
         string $sourceLanguage = 'en',
         string $format = 'text'
     ): array {
-        LoggerService::logDebugI18n('GoogleTranslationBatchService-90', 
-            ['texts' =>$texts,
+        LoggerService::logDebugI18n('GTBS.batch', 
+            [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'texts' =>$texts,
             'targetLanguage' => $targetLanguage,
             'sourceLanguage'=> $sourceLanguage,
             'format'=>$format] );
 
         if (empty($texts)) {
-            LoggerService::logDebugI18n('GoogleTranslationBatchService-96', 'No Texts' );
+            LoggerService::logDebugI18n('GTBS.noTexts',
+            [
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
+                'message'   => 'No Texts' 
+            ]);
            // Always return a 5-tuple: ok, list, httpCode, err, len
             return [true, [], null, null, 0]; // httpCode=null => no request made
         }
@@ -143,8 +160,12 @@ class GoogleTranslationBatchService implements TranslationProvider
         $translatedByUniqueIndex = array_fill(0, count($uniqueList), '');
 
         foreach ($chunks as $chunk) {
-            LoggerService::logDebugI18n('GoogleTranslationBatchService-139', 
-                ['chunk' =>$chunk,
+            LoggerService::logDebugI18n('GTBS.chunk', 
+                [
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
+                'chunk' =>$chunk,
                 'targetLanguage' => $targetLanguage,
                 'sourceLanguage'=> $sourceLanguage,
                 'format'=>$format] );
@@ -164,7 +185,13 @@ class GoogleTranslationBatchService implements TranslationProvider
         }
         $list = array_values($out);
         $len  = count($list);
-        LoggerService::logDebugI18n('GoogleTranslationBatchService-159', $list);
+        LoggerService::logDebugI18n('GTBS.list', 
+        [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'list'     => $list
+        ]);
         // If you have a real HTTP code from upstream, use it instead of 200.
         // Likewise, propagate any $err message you captured earlier.
         $httpCode = 200;
@@ -194,7 +221,13 @@ class GoogleTranslationBatchService implements TranslationProvider
                 $this->callGoogleV2Once($texts, $targetLanguage, $sourceLanguage, $format);
 
             if ($ok) {
-                LoggerService::logDebugI18n('GoogleTranslationBatchService-191', $translations);
+                LoggerService::logDebugI18n('GTBS.translations',
+                [
+                    'method'   => __METHOD__ ,
+                    'function' => __FUNCTION__ ,
+                    'line'     => __LINE__ , 
+                    'translations' =>$translations
+                ]);
                 return $translations;
             }
 
@@ -234,7 +267,12 @@ class GoogleTranslationBatchService implements TranslationProvider
         string $format
     ): array {
         $url = 'https://translation.googleapis.com/language/translate/v2?key=' . urlencode($this->apiKey);
-        LoggerService::logDebugI18n('GoogleTranslationBatchService-224',$url);
+        LoggerService::logDebugI18n('GTBS.url',[
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'url' => $url
+        ]);
         $payload = [
             'q'      => array_values($texts), // preserves order
             'source' => $sourceLanguage,
@@ -242,7 +280,13 @@ class GoogleTranslationBatchService implements TranslationProvider
             'format' => $format,              // "text" or "html"
             'model'  => 'nmt',                // be explicit
         ];
-        LoggerService::logDebugI18n('GoogleTranslationBatchService-231',$payload);
+        LoggerService::logDebugI18n('GTBS.payload',
+        [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'payload' => $payload
+        ]);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -267,14 +311,26 @@ class GoogleTranslationBatchService implements TranslationProvider
 
         // Minimal logging: status + body length; avoid logging text content
         $respLen = is_string($response) ? strlen($response) : 0;
-        LoggerService::logDebugI18n('TranslationBatchService-264', "HTTP {$httpCode}; bytes={$respLen}");
+        LoggerService::logDebugI18n('GTBS.httpCode',
+        [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'httpCode' => "HTTP {$httpCode}; bytes={$respLen}"
+        ]); 
 
         if (!is_string($response) || $httpCode !== 200) {
             return [false, array_fill(0, count($texts), ''), $httpCode, $error, $respLen];
         }
 
         $data = json_decode($response, true);
-        LoggerService::logDebugI18n('TranslationBatchService-271', [$data]);
+        LoggerService::logDebugI18n('GTBS.response.data',
+         [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'data'     =>$data
+        ]);
         $items = $data['data']['translations'] ?? [];
 
         // Align translations to input order/size

@@ -133,11 +133,14 @@ final class TranslationQueueProcessor
 
         // Log the effective scope and mode at the start of each cycle.
         LoggerService::logDebugI18n(
-            'TranslationQueueProcessor.runOnce-126',
+            'TQP.runOnce',
             [
-                'scope'   => $this->scopeFilters,
-                'dryRun'  => $this->dryRun,
-                'batch'   => $this->batchSize ?? null,
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
+                'scope'    => $this->scopeFilters,
+                'dryRun'   => $this->dryRun,
+                'batchSize'    => $this->batchSize ?? null,
             ]
         );
 
@@ -152,12 +155,7 @@ final class TranslationQueueProcessor
  
          // If $this->dryRun is true, skip writes (upsert/delete),
          // but still log what *would* have happened:
-         // if ($this->dryRun) { LoggerService::logDebugI18n('TQP.dry.ids', $ids); }
-
-        LoggerService::logDebugI18n('TQP.runOnce.begin-147', [
-            'scope' => $this->scopeFilters,
-            'batch' => $this->batchSize ?? null,
-        ]);
+         // if ($this->dryRun) { LoggerService::logDebugI18n('TQP.dry.ids', $ids);
 
        // Build WHERE for "eligible" rows (existing project rules).
         $where = [];
@@ -265,10 +263,23 @@ final class TranslationQueueProcessor
         }
         
         $jobs = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        LoggerService::logDebugI18n('TQP.selected-268', ['count' => count($jobs), 'limit' => $limit, 'sql' => $sql]);
+        LoggerService::logDebugI18n('TQP.selected', [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'count'    => count($jobs), 
+            'limit'    => $limit, 
+            'sql'     => $sql,
+            
+        ]);
         
         if (!$jobs) {
-            LoggerService::logDebugI18n('TQP.noJobs-272', [$sql]);
+                LoggerService::logDebugI18n('TQP.noJobs', [
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
+                'sql'     =>  $sql]
+            );
             usleep((200 + random_int(0, 150)) * 1000); // 200–350ms // avoid tight-loop log spam when queue is empty
             return;
         }
@@ -283,26 +294,38 @@ final class TranslationQueueProcessor
         $total = (int)$countStmt->fetchColumn();
 
        // Debug log (lazy context so it’s free when disabled)
-        LoggerService::logDebugI18n('TQP.selected-286', function () use ($jobs, $limit, $total, $params) {
+        LoggerService::logDebugI18n('TQP.selected', function () use ($jobs, $limit, $total, $params) {
             // keep params serializable
             $safeParams = [];
             foreach ($params as $k => $v) {
                 $safeParams[$k] = is_scalar($v) || $v === null ? $v : gettype($v);
             }
             return [
-                'count'  => count($jobs),  // what we actually fetched
-                'total'  => $total,        // how many matched before LIMIT
-                'limit'  => $limit,
-                'params' => $safeParams,
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
+                'count'    => count($jobs),  // what we actually fetched
+                'total'    => $total,        // how many matched before LIMIT
+                'limit'    => $limit,
+                'params'   => $safeParams,
             ];
         });
         // Optional: quick peek at the first few IDs to prove selection
-            LoggerService::logDebugI18n('TQP.selected.sample-299', function () use ($jobs) {
-                return ['ids' => array_slice(array_column($jobs, 'id'), 0, 10)];
+            LoggerService::logDebugI18n('TQP.selected.id.first.10', function () use ($jobs) {
+                return [
+                    'method'   => __METHOD__ ,
+                    'function' => __FUNCTION__ ,
+                    'line'     => __LINE__ ,
+                    'ids' => array_slice(array_column($jobs, 'id'), 0, 10)
+                ];
             });
 
         if (!$jobs) { 
-            LoggerService::logDebugI18n('TQP.jobs.none-221', ['no jobs']);
+            LoggerService::logDebugI18n('TQP.jobs.none', [
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
+                'message' => 'no jobs']);
             return;
          }
 
@@ -346,7 +369,12 @@ final class TranslationQueueProcessor
         //     using the $ids selected above.
  
 
-        LoggerService::logDebugI18n('TranslationQueueProcessor-66', 'started process');
+        LoggerService::logDebugI18n('TQP.resetCounters',
+            ['method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ , 
+            'message'  => 'started process'
+        ]);
                 // reset per-run stats
         $this->attempted = 0;
         $this->succeeded = 0;
@@ -355,6 +383,13 @@ final class TranslationQueueProcessor
         $started = microtime(true);
         try {
             $jobs = $this->lockBatch();
+            LoggerService::logDebugI18n('TQP.lockbatch.returned', 
+                ['method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ , 
+                'message'  => 'started process',
+                'jobs' => $jobs 
+            ]);
         } catch (Throwable $e) {
             LoggerService::logError('TQP lockBatch failed', [
                 'err' => $e->getMessage(),
@@ -363,17 +398,30 @@ final class TranslationQueueProcessor
         }
 
         if (!$jobs) {
-            LoggerService::logDebugI18n(' TranslationQueProcessor-282', 'TQP: no eligible jobs.');
+            LoggerService::logDebugI18n('TQP:jobs.none',  [
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ , 
+                'message'  =>'TQP: no eligible jobs.'
+            ]);
             return;
         }
 
         foreach ($jobs as $job) {
-             LoggerService::logDebugI18n('TranslationQueProcessor-372', $job);
-            return;
+            LoggerService::logDebugI18n('TQP.job', [
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ , 
+                'message'  => 'calling processOne', 
+                'job'=>$job
+            ]);
             $this->processOne($job);
         }
              // Emit per-run stats before final timing line
         LoggerService::logDebugI18n('TQP: stats', [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ , 
             'attempts'  => $this->attempted,
             'success'   => $this->succeeded,
             'retry'     => $this->retryable,
@@ -401,20 +449,28 @@ final class TranslationQueueProcessor
      */
     private function lockBatch(): array
     {
+        $limit = (int) ($this->batchSize ?? 100);
+        if ($limit < 1) {
+            $limit = 1;
+        }
+        // Optional upper cap to avoid absurd limits
+        if ($limit > 120) {
+            $limit = 120;
+        }
         $this->pdo->beginTransaction();
         try {
             // Step 1: read candidate ids
-            $sel = $this->pdo->prepare(
-                'SELECT id
-                   FROM i18n_translation_queue
-                  WHERE status = "queued"
-                    AND runAfter <= UTC_TIMESTAMP()
-                    AND (lockedAt IS NULL
-                         OR lockedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE))
-               ORDER BY priority DESC, id ASC
-                  LIMIT :lim'
-            );
-            $sel->bindValue(':lim', $this->batchSize, PDO::PARAM_INT);
+            $sql = '
+                SELECT id
+                FROM i18n_translation_queue
+                WHERE status = "queued"
+                AND runAfter <= UTC_TIMESTAMP()
+                AND (lockedAt IS NULL
+                        OR lockedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE))
+            ORDER BY priority DESC, id ASC
+                LIMIT ' . $limit;
+
+            $sel = $this->pdo->prepare($sql);
             $sel->execute();
             $ids = $sel->fetchAll(PDO::FETCH_COLUMN, 0);
 
@@ -436,11 +492,18 @@ final class TranslationQueueProcessor
                     AND (lockedAt IS NULL
                          OR lockedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE))"
             );
-
+            
             $bind = [$this->workerId];
             foreach ($ids as $id) {
                 $bind[] = (int) $id;
             }
+            LoggerService::logDebugI18n('TQP.LockBatch.processing.set',
+                ['method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ , 
+                'in'  => $in,
+                'bind' => $bind
+            ]); 
             $upd->execute($bind);
 
             // Step 3: fetch what we actually locked
@@ -456,8 +519,21 @@ final class TranslationQueueProcessor
                 $bind2[] = (int) $id;
             }
             $bind2[] = $this->workerId;
+            LoggerService::logDebugI18n('TQP.LockBatch.processing.get',
+                ['method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ , 
+                'in'  => $in,
+                'bind' => $bind2
+            ]); 
             $sel2->execute($bind2);
             $jobs = $sel2->fetchAll(PDO::FETCH_ASSOC);
+             LoggerService::logDebugI18n('TQP.LockBatch.jobs',
+                ['method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ , 
+                'jobs'  => $jobs,
+            ]); 
 
             $this->pdo->commit();
             return $jobs ?: [];
@@ -503,9 +579,13 @@ final class TranslationQueueProcessor
     {
         ++$this->attempted;
         $id     = (int) $row['id'];
-        
-        LoggerService::logDebugI18n('TranslationQueueProceessor-206', $row);
-        LoggerService::logDebugI18n('TranslationQueueProceessor-208', $id);
+        LoggerService::logDebugI18n('TQP.LockBatch.jobs',
+                ['method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ , 
+                'row'  => $row,
+                'id'  => $id,
+            ]); 
 
         $sourceLang = $row['sourceLanguageCodeGoogle'] ?: 'en';
         $targetLang = $row['targetLanguageCodeGoogle'];
@@ -519,9 +599,24 @@ final class TranslationQueueProcessor
         // Guard: need a target and text; sourceStringId is required for the
         // translations table schema.
         if ($stringId === null || $targetLang === '' ||  $sourceText === '') {
+            LoggerService::logDebugI18n('TQP.parameters.null', [
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
+                'stringId'     => $id,
+                'targetLang' => $targetLang,
+                'sourceText' => $sourceText,
+            ]);
             $this->failPermanently($id, 'invalid-queue-row');
             return;
         }
+         LoggerService::logDebugI18n('TQP:translating', [
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
+                'targetLang' => $targetLang,
+                'sourceText' => [$sourceText],
+            ]);
 
         [$ok, $out, $httpCode, $errMsg, $respLen] = 
            $this->translator->translate(
@@ -543,6 +638,9 @@ final class TranslationQueueProcessor
 
         if ($success) {
             LoggerService::logDebugI18n('TQ-success', [
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
                 'stringId'  => $stringId,
                 'lang'      => $targetLang,
                 'len'       => mb_strlen($translatedText),
@@ -581,7 +679,7 @@ final class TranslationQueueProcessor
         ];
 
         if ($transient) {
-            LoggerService::logWarning('TQ-retry', $diag);
+            LoggerService::logDebugI18n('TQ-retry', [$diag]);
             ++$this->retryable;
             $this->requeueWithBackoff($job);
             return;
@@ -605,8 +703,8 @@ final class TranslationQueueProcessor
     private function deadLetter(int $id, array $diag): void
     {
         if ($id <= 0) { return; }
-        LoggerService::logError(
-            'TQ-dead-permanent',
+        LoggerService::logDebugI18n(
+            'TQ.dead.permanent',
             $diag + ['reason' => 'provider-hard-fail', 'id' => $id]
         );
         $this->failPermanently($id, 'provider-hard-fail');
@@ -697,6 +795,13 @@ final class TranslationQueueProcessor
         $attempts = (int) $job['attempts'] + 1;
 
         if ($attempts >= $this->maxAttempts) {
+             LoggerService::logDebugI18n('TQP.attempts.tooMany', [
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
+                'id'     => $id,
+                'reason' => $attempts,
+            ]);
             $this->failPermanently($id, 'max-attempts');
             return;
         }
@@ -734,7 +839,10 @@ final class TranslationQueueProcessor
               WHERE id = :id'
         );
         $upd->execute([':id' => $id]);
-        LoggerService::logError('TQP: failed permanently', [
+        LoggerService::logDebugI18n('TQP: failed permanently', [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
             'id'     => $id,
             'reason' => $reason,
         ]);
@@ -753,19 +861,30 @@ final class TranslationQueueProcessor
     private function ensureStringId(array $row): int
     {
 
-        LoggerService::logDebugI18n('TQP ensureStringId -- 380', $row);
+        LoggerService::logDebugI18n('TQP.ensureStringId',[ 
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'row'     => $row,
+            'reason' => $reason
+        ]);
         $this->pdo->beginTransaction();
 
         try {
             // 0) Resolve FKs from human-friendly fields
             $clientId   = $this->resolveClientId((string)$row['clientCode']);
-            LoggerService::logDebugI18n('TQP ensureStringId -- 387', $clientId);
+            LoggerService::logDebugI18n('TQP ensureStringId', $clientId);
             $resourceId = $this->resolveResourceId(
                 (string)$row['resourceType'],
                 (string)$row['subject'],
                 (string)$row['variant']
             );
-            LoggerService::logDebugI18n('TQP ensureStringId -- 395', $resourceId);
+            LoggerService::logDebugI18n('TQP.ensureStringId',[
+                'method'       => __METHOD__ ,
+                'function'     => __FUNCTION__ ,
+                'line'         => __LINE__ ,
+                'resourceId'   => $resourceId
+            ]);
 
             $keyHash     = (string)$row['sourceKeyHash'];  // 40-char sha1
             $englishText = (string)$row['sourceText'];     // queue has the source text
@@ -778,7 +897,12 @@ final class TranslationQueueProcessor
             );
             $sel->execute([$clientId, $resourceId, $keyHash]);
             $stringId = (int) ($sel->fetchColumn() ?: 0);
-            LoggerService::logDebugI18n('TQP ensureStringId -- 407',  $stringId );
+            LoggerService::logDebugI18n('TQP.ensureStringId',[ 
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
+                'stringId' => $stringId 
+            ]);
 
             // 2) If not found, insert it
             if ($stringId === 0) {
