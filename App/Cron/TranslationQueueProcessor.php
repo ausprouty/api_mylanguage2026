@@ -88,12 +88,24 @@ final class TranslationQueueProcessor
         $host = php_uname('n');
         $pid  = (string) getmypid();
         $this->workerId = substr("cron:$host:$pid", 0, 64);
+        LoggerService::logDebugI18n('TQP.provider',[  
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'class' => get_class($this->translator)]
+        );
 
         // Log which class file is actually in use (path + short hash)
         $rc = new \ReflectionClass($this);
         $file = $rc->getFileName();
         $hash = is_file($file) ? substr(sha1_file($file), 0, 12) : 'missing';
-        LoggerService::logDebugI18n('TQP.version', ['file' => $file, 'hash' => $hash]);
+        LoggerService::logDebugI18n('TQP.version', [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'file' => $file, 
+            'hash' => $hash
+        ]);
         
     }
         /** Allow the runner to inject a PDO handle. */
@@ -109,14 +121,23 @@ final class TranslationQueueProcessor
     {
         // Do not run if in maintenance
         if (Config::getBool('i18n.maintenance', false)) {
-            LoggerService::logDebugI18n('TQP.maintenance_skip');
+            LoggerService::logDebugI18n('TQP.maintenance_skip'[
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ]);
         return;
 
         // Log which class file is actually running (helps detect stale copies)
         $rc   = new \ReflectionClass($this);
         $file = $rc->getFileName();
         $hash = is_file($file) ? substr(sha1_file($file), 0, 12) : 'missing';
-        LoggerService::logDebugI18n('TQP.version', ['file' => $file, 'hash' => $hash]);
+        LoggerService::logDebugI18n('TQP.version', [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'file' => $file, 
+            'hash' => $hash
+        ]);
   
 }
         if ($this->pdo === null) {
@@ -124,8 +145,12 @@ final class TranslationQueueProcessor
             if ($this->pdo === null) {
                 LoggerService::logDebugI18n(
                     'TQP.runOnce.noPdo',
-                    ['err' => 'resolvePdo() failed']
-                );
+                    [
+                        'method'   => __METHOD__ ,
+                        'function' => __FUNCTION__ ,
+                        'line'     => __LINE__ ,
+                        'err' => 'resolvePdo() failed'
+                    ]);
                 return;
             }
         }
@@ -617,6 +642,8 @@ final class TranslationQueueProcessor
                 'targetLang' => $targetLang,
                 'sourceText' => [$sourceText],
             ]);
+
+        // the translator provider is set in Configuration/di/32-translation.php    
 
         [$ok, $out, $httpCode, $errMsg, $respLen] = 
            $this->translator->translate(

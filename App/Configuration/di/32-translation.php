@@ -9,6 +9,8 @@ use function DI\factory;
 
 use Psr\Container\ContainerInterface;
 
+use App\Configuration\Config;
+
 // Contracts (new + legacy)
 use App\Contracts\Translation\TranslationProvider as TranslationProviderContract;
 use App\Contracts\Translation\ProviderSelector as ProviderSelectorContract;
@@ -19,6 +21,7 @@ use App\Contracts\Translation\TranslationService as TranslationServiceContract;
 use App\Services\Language\I18nTranslationService;
 use App\Services\Language\GoogleTranslationBatchService;
 use App\Services\Language\NullTranslationBatchService;
+use App\Services\Language\TranslationProviderSelector;
 
 return [
 
@@ -27,60 +30,46 @@ return [
     NullTranslationBatchService::class   => autowire()
         ->constructorParameter('prefixMode', true), // keep if your Null expects it
 
-    // --- Provider selection (single source of truth) ---
-    'i18n.provider.map' => [
-        'null'   => NullTranslationBatchService::class,
-        'google' => GoogleTranslationBatchService::class,
-    ],
+    // --- Provider selector driven by Config::get(...) ---
+    ProviderSelectorContract::class =>
+        autowire(TranslationProviderSelector::class)
+            ->constructor(
+                [
+                    'google' => GoogleTranslationBatchService::class,
+                    'null'   => NullTranslationBatchService::class,
+                ],
+                static function (string $key, $default = null) {
+                    // Single source of truth for env + i18n.autoMt.*
+                    return Config::get($key, $default);
+                }
+            ),
 
-    // Decide provider once; expose both chosenKey() and chosenClass()
-    ProviderSelectorContract::class => factory(function (ContainerInterface $c) {
-        $enabled   = $c->has('i18n.autoMt.enabled')
-            ? (bool) $c->get('i18n.autoMt.enabled') : false;
-        $requested = $c->has('i18n.autoMt.provider')
-            ? (string) $c->get('i18n.autoMt.provider') : 'null'; // 'google' | 'null'
+    // Resolve the provider via the selector (what TQP asks for)
+    TranslationProviderContract::class => factory(
+        static function (ContainerInterface $c) {
+            /** @var ProviderSelectorContract $sel */
+            $sel = $c->get(ProviderSelectorContract::class);
+            $cls = method_exists($sel, 'resolveProviderClass')
+                ? $sel->resolveProviderClass()
+                : $sel->chosenClass();
+            return $c->get($cls);
+        }
+    ),
 
-        $googleAvailable = class_exists(GoogleTranslationBatchService::class);
+    // Concrete providers (normal autowiring)
+    GoogleTranslationBatchService::class => autowire(),
+    NullTranslationBatchService::class   => autowire(),
 
-        $key = (!$enabled) ? 'null'
-             : (($requested === 'google' && $googleAvailable) ? 'google' : 'null');
-
-        $map = [
-            'null'   => NullTranslationBatchService::class,
-            'google' => GoogleTranslationBatchService::class,
-        ];
-        $cls = $map[$key] ?? NullTranslationBatchService::class;
-
-        return new class($key, $cls) implements ProviderSelectorContract {
-            public function __construct(
-                private string $key,
-                private string $cls
-            ) {}
-            public function chosenKey(): string   { return $this->key; }
-            public function chosenClass(): string { return $this->cls; }
-        };
-    }),
-
-    // Resolve provider from selector
-    TranslationProviderContract::class => factory(function (ContainerInterface $c) {
-        /** @var ProviderSelectorContract $sel */
-        $sel = $c->get(ProviderSelectorContract::class);
-        return $c->get($sel->chosenClass());
-    }),
-
-    // Back-compat: legacy class name → chosen provider
-    App\Services\Language\TranslationBatchService::class =>
-        get(TranslationProviderContract::class),
-
-    // --- Canonical TranslationService (bind both contract namespaces) ---
-    
+    // Canonical TranslationService binding
     TranslationServiceContract::class =>
         autowire(I18nTranslationService::class)
             ->constructorParameter(
                 'baseLanguage',
-                factory(fn(ContainerInterface $c) =>
-                    $c->has('i18n.baseLanguage') ? $c->get('i18n.baseLanguage') : 'eng00'
+                factory(
+                    static fn (ContainerInterface $c) =>
+                        Config::get('i18n.baseLanguage', 'eng00')
                 )
             ),
+ ];
 
 ];
