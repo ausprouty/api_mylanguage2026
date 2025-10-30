@@ -10,6 +10,9 @@
         "guzzlehttp/psr7": "^2.7",
         "psr/simple-cache": "^3.0"
     },
+    "config": {
+      "script-shell": "bash.exe"
+    },
     "require-dev": {
         "phpunit/phpunit": "^10"
     },
