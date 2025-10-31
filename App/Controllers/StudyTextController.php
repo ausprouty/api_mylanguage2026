@@ -7,6 +7,7 @@ use App\Http\Concerns\ValidatesArgs;
 use App\Responses\JsonResponse;
 use App\Services\BibleStudy\TextBundleResolver;
 use App\Services\LoggerService;
+use App\Support\i18n\Normalize;
 use Exception;
 
 final class StudyTextController
@@ -35,10 +36,10 @@ final class StudyTextController
             $kind = $this->arg($args, 'kind', [$this, 'normId']);
             $subj = $this->arg($args, 'subject', [$this, 'normId']);
             $lang = $this->arg($args, 'languageCodeHL', [$this, 'normId']); 
-            $var  = $this->arg($args, 'variant', [$this, 'normId']) ?? 'default';
+            $var  = normalizeVariant($this->arg($args, 'variant'));
 
             if (!isset(self::KINDS[$kind])) {
-                JsonResponse::error('Invalid kind. Use: coMmon | interface');
+                JsonResponse::error('Invalid kind. Use: common | interface');
                 return;
             }
 

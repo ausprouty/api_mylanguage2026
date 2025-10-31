@@ -14,6 +14,7 @@ use App\Services\Database\DatabaseService;
 use App\Services\LoggerService as Log;
 use App\Support\Async;
 use App\Support\i18n\ExcludeKeyMatcher;
+use App\Support\i18n\Normalize;
 use App\Configuration\Config;
 
 class I18nTranslationService implements TranslationServiceContract
