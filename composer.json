@@ -18,7 +18,7 @@
     },
     "scripts": {
       "pre-test:di": ["composer dump-autoload -o"],    
-      "release": "bash -lc 'set -e; chmod +x scripts/build-release.sh; git add -A; git commit -m \"Queue SELECT: inline numeric LIMIT\"; git tag -a \"release-$(date +%Y%m%d-%H%M%S)\" -m \"Release with inline LIMIT\"; git push --follow-tags; scripts/build-release.sh'",
+      "release": "bash -lc 'set -euo pipefail; ./scripts/build-release.sh'",
       "test:di": [
         "composer dump-autoload -o",
         "@php bin/di-smoke.php"

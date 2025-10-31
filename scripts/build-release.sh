@@ -1,6 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+#Optional: show a helpful error if something fails
+trap 'echo "[release] failed on line $LINENO" >&2' ERR
+
+# Ensure we’re at the repo root (works in Git Bash & Linux)
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+echo "[release] ensuring executable bit"
+chmod +x scripts/build-release.sh
+
+echo "[release] staging any changes"
+git add -A
+
+if ! git diff --staged --quiet; then
+  echo "[release] committing staged changes"
+  git commit -m "Queue SELECT: inline numeric LIMIT"
+else
+  echo "[release] no staged changes; skipping commit"
+fi
+
+tag="release-$(date +%Y%m%d-%H%M%S)"
+echo "[release] tagging $tag"
+git tag -a "$tag" -m "Release with inline LIMIT"
+
+echo "[release] pushing branch + tags"
+git push --follow-tags
+
+echo "[release] building artifact(s)"
+
+
 ts="$(date -u +%Y%m%d_%H%M%S)"
 STAGE=".build/release_${ts}"
 ARTIFACT="release_${ts}.zip"
