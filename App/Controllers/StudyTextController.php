@@ -34,8 +34,7 @@ final class StudyTextController
         try {
             $kind = $this->arg($args, 'kind', [$this, 'normId']);
             $subj = $this->arg($args, 'subject', [$this, 'normId']);
-            $lang = $this->arg($args, 'languageCodeHL', [$this, 'normId']);
-            $var  = $this->arg($args, 'variant', [$this, 'normId']);
+            $lang = $this->arg($args, 'languageCodeHL', [$this, 'normId']) ?? 'default';
 
             if (!isset(self::KINDS[$kind])) {
                 JsonResponse::error('Invalid kind. Use: coMmon | interface');

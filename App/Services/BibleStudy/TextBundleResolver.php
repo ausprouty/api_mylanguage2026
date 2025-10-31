@@ -23,8 +23,9 @@ final class TextBundleResolver
         string $kind,
         string $subject,
         string $languageCodeHL,
-        string $variant = 'default'
+        ?string $variant = null
     ): array {
+        $variant = $variant ?? 'default';
         $ver = $this->templates->version($kind, $subject);
 
         $tplKey = $this->tplKey($kind, $subject, $ver);

@@ -33,17 +33,6 @@ final class TranslationProviderSelector implements Contract
         $this->map = $map;
     }
 
-    
-
-    private function cfgBool(string $key, bool $default = false): bool
-    {
-        if (is_bool($v)) return $v;
-        $s = strtolower((string)$v);
-        if (in_array($s, ['1','true','yes','on'], true))  return true;
-        if (in_array($s, ['0','false','no','off'], true)) return false;
-        return $default;
-    }
-
     /**
      * Returns the selected provider key ('google' or 'null').
      */
@@ -55,9 +44,7 @@ final class TranslationProviderSelector implements Contract
         LoggerService::logDebugI18n('TPS.env', [
             'env' => $env,
         ]);
-         // Read either i18n.autoMt or i18n.autoMt.enabled (both supported)
-        $autoMt = Config::get('i18n.autoMt', Config::get('i18n.autoMt.enabled', true));
-        if (!$this->boolVal($autoMt, true)) {
+        if (!\App\Configuration\Config::getBool('i18n.autoMt.enabled', true)) {
             return 'null';
         }
 

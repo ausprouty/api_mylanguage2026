@@ -121,7 +121,7 @@ final class TranslationQueueProcessor
     {
         // Do not run if in maintenance
         if (Config::getBool('i18n.maintenance', false)) {
-            LoggerService::logDebugI18n('TQP.maintenance_skip'[
+            LoggerService::logDebugI18n('TQP.maintenance_skip',[
                 'method'   => __METHOD__ ,
                 'function' => __FUNCTION__ ,
                 'line'     => __LINE__ ]);
@@ -665,14 +665,15 @@ final class TranslationQueueProcessor
 
         if ($success) {
             LoggerService::logDebugI18n('TQ-success', [
-                'method'   => __METHOD__ ,
-                'function' => __FUNCTION__ ,
-                'line'     => __LINE__ ,
-                'stringId'  => $stringId,
-                'lang'      => $targetLang,
-                'len'       => mb_strlen($translatedText),
-                'http'      => $httpCode,
-                'jobId'     => $id,
+                'method'         => __METHOD__ ,
+                'function'       => __FUNCTION__ ,
+                'line'           => __LINE__ ,
+                'stringId'       => $stringId,
+                'translatedText' => $translatedText,
+                'lang'           => $targetLang,
+                'len'            => mb_strlen($translatedText),
+                'http'           => $httpCode,
+                'jobId'          => $id,
             ]);
         
 
