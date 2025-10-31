@@ -106,7 +106,7 @@ final class I18nResourcesRepository
     public function ensureIdByTypeSubjectVariant(
         string $resourceType,
         string $resourceSubject,
-        string $resourceVariant = 'default',
+        ?string $resourceVariant = null,
         ?string $description = null
     ): int {
         $variant = \App\Support\i18n\Normalize::normalizeVariant($resourceVariant);

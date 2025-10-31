@@ -113,10 +113,16 @@ final class Async
             if (preg_match('~php-fpm($|[^a-z])~i', $bin)) {
                 return false;
             }
+            // If exec() is disabled, we can’t probe; assume not CLI
+           if (!\function_exists('exec')) {
+                return false;
+            }
             $out = [];
             $rc  = 0;
-            @exec(escapeshellcmd($bin) . ' -r "echo PHP_SAPI;"', $out, $rc);
-            return $rc === 0 && implode('', $out) === 'cli';
+            // Quote the binary and the inline PHP for safety/cross-platform
+            $cmd = \sprintf('%s -r %s', \escapeshellarg($bin), \escapeshellarg('echo PHP_SAPI;'));
+            @\exec($cmd, $out, $rc);
+            return $rc === 0 && \implode('', $out) === 'cli';        
         };
 
         // 1) Explicit override (env or Apache SetEnv)
