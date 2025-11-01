@@ -36,7 +36,7 @@ final class StudyTextController
             $kind = $this->arg($args, 'kind', [$this, 'normId']);
             $subj = $this->arg($args, 'subject', [$this, 'normId']);
             $lang = $this->arg($args, 'languageCodeHL', [$this, 'normId']); 
-            $var  = normalizeVariant($this->arg($args, 'variant'));
+            $var  = Normalize::normalizeVariant($this->arg($args, 'variant'));
 
             if (!isset(self::KINDS[$kind])) {
                 JsonResponse::error('Invalid kind. Use: common | interface');

@@ -109,7 +109,7 @@ final class I18nResourcesRepository
         ?string $resourceVariant = null,
         ?string $description = null
     ): int {
-        $variant = \App\Support\i18n\Normalize::normalizeVariant($resourceVariant);
+        $resourceVariant = \App\Support\i18n\Normalize::normalizeVariant($resourceVariant);
 
         $id = $this->getIdByTypeSubjectVariant(
             $resourceType,
