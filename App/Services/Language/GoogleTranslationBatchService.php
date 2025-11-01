@@ -37,7 +37,6 @@ class GoogleTranslationBatchService implements TranslationProvider
             LoggerService::logError('GTBS-36', 'Missing Google API key.');
             throw new \RuntimeException('Google API key is required.');
         }
-        $this->debugService = Config::get('logging.i18n_debug') ?? false;
     }
 
         /**

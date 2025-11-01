@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use App\Configuration\Config;
 use App\Cron\TranslationQueueProcessor;
+use App\Security\CronTokenGuard;
 use App\Services\Database\DatabaseService;
 use App\Services\LoggerService;
 use PDO;
@@ -14,8 +15,25 @@ final class TranslationQueueController
     public function __construct(
         private DatabaseService $db,
         private LoggerService $log,
-        private TranslationQueueProcessor $processor
+        private TranslationQueueProcessor $processor,
+        private CronTokenGuard $guard,
     ) {}
+
+    /**
+     * Run the queue once if authorized.
+     * Accepts token via route {token} or X-CRON-TOKEN header.
+     */
+    public function __invoke(array $args = []): void
+    {
+        $token = $this->guard->extractToken($args);
+        if (!$this->guard->authorizeOnce($token)) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'forbidden']);
+            return;
+        }
+        $this->processor->runOnce();
+        echo json_encode(['ok' => true]);
+    }
 
     /**
      * HTTP entrypoint: /cron/{token}?batches=1&sleepMs=0
@@ -71,12 +89,6 @@ final class TranslationQueueController
         ]);
     }
 
-    /** Constant-time compare. */
-    private function safeEquals(string $a, string $b): bool
-    {
-        if ($a === '' || $b === '') return false;
-        return hash_equals($a, $b);
-    }
 
     private function acquireDbLock(PDO $pdo, string $name, int $waitSec): bool
     {
@@ -92,50 +104,6 @@ final class TranslationQueueController
         $stmt->execute([':n' => $name]);
     }
 
-        /**
-     * Authorization model:
-     *  - CLI: always allowed
-     *  - HTTP: must present a one-time token that exists in cron_tokens
-     *          and is deleted atomically on use (prevents replay).
-     *
-     * Token can be provided via:
-     *   - $args['token']  (path param)
-     *   - $_GET['token'] or $_GET['t'] (query)
-     *   - HTTP header 'X-Cron-Token'
-     *
-     * Optional (uncomment if your table has these columns):
-     *   - scope = 'translation'
-     *   - expires_at IS NULL OR expires_at > NOW()
-     */
-    private function isAuthorized(PDO $pdo, array $args): bool
-    {
-        LoggerService::logDebug('TranslationQueueContoller-111', $args);
-        if (PHP_SAPI === 'cli') {
-            return true;
-        }
-
-        $given = (string)(
-            $args['token']
-            ?? ($_GET['token'] ?? '')
-            ?? ($_GET['t'] ?? '')
-        );
-
-        if ($given === '' && isset($_SERVER['HTTP_X_CRON_TOKEN'])) {
-            $given = (string)$_SERVER['HTTP_X_CRON_TOKEN'];
-        }
-
-        if ($given === '') {
-            return false;
-        }
-        LoggerService::logDebug('TranslationQueueContoller-129', $given);
-
-        // One-time use: delete the row if present (atomic gate)
-        // Minimal schema: cron_tokens(token VARCHAR PRIMARY KEY)
-        $sql = 'DELETE FROM cron_tokens
-                WHERE token = :t
-                LIMIT 1';
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([':t' => $given]);
-        return $stmt->rowCount() === 1;
-    }
+     
+    
 }

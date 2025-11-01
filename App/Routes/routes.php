@@ -47,6 +47,12 @@ return function (RouteCollector $r) {
     $r->addGroup($basePath . '/api/v2/translate', function (RouteCollector $g)
     use ($container) {
 
+        $g->addRoute('GET', '/cron/{token}', function ($args) use ($container) {
+            $processor = $container->get(\App\Controllers\TranslationQueueController::class);
+             $c = $container->get(App\Controllers\TranslationQueueController::class);
+             return $c->run($args);
+        });
+
         // Unified for interface + commonContent
         // GET /api/v2/translate/text/{kind}/{subject}/{languageCodeHL}?variant=
         $g->addRoute('GET',
@@ -116,6 +122,7 @@ return function (RouteCollector $r) {
     });
     // translate
     $r->addGroup($basePath . '/api/translate', function (RouteCollector $group) use ($container) {
+
         $group->addRoute('GET', '/cron/{token}', function ($args) use ($container) {
             $processor = $container->get(\App\Controllers\TranslationQueueController::class);
             $processor->runIfAuthorized($args['token']);
