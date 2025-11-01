@@ -707,14 +707,29 @@ final class TranslationQueueProcessor
         ];
 
         if ($transient) {
-            LoggerService::logDebugI18n('TQ-retry', [$diag]);
+            LoggerService::logDebugI18n('TQ-retry', [
+                 [
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
+                'targetLang' => $targetLang,
+                'sourceText' => [$sourceText]
+                'message' =>    $diag
+                ]);
             ++$this->retryable;
             $this->requeueWithBackoff($job);
             return;
         }
 
         // Permanent failure → dead-letter (or mark failed without retry)
-        LoggerService::logError('TQ-dead', $diag);
+        LoggerService::logError('TQ-dead', [
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
+                'targetLang' => $targetLang,
+                'sourceText' => [$sourceText]
+                'message' =>  $diag
+                )] ;
         ++$this->permanent;
         $this->deadLetter($id, $diag);
         return;
