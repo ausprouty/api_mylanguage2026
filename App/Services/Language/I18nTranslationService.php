@@ -641,6 +641,19 @@ class I18nTranslationService implements TranslationServiceContract
         string $sourceText,
         int    $priority = 0
     ): void {
+        if ($targetLanguageGoogle == 'en'){
+            Log:logError ('ITS.eng', [
+                'method'        => __METHOD__ ,
+                'function'      => __FUNCTION__ ,
+                'line'          => __LINE__ ,
+                'clientCode'    => $clientCode,
+                'resourceType'  => $resourceType,
+                'subject'       => $subject,
+                'variant'       => $variantCode,
+                'message'  => 'targeLanguageGoogle is en',
+            ]);
+            return;
+        }
         $sql = "
             INSERT INTO i18n_translation_queue
               (sourceStringId, sourceLanguageCodeGoogle, clientCode,

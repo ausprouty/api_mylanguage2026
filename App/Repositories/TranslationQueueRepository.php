@@ -29,6 +29,20 @@ final class TranslationQueueRepository
         ?\DateTimeInterface $runAfter = null,
         string $sourceLangGoogle = 'en'
     ): bool {
+
+        if ($targetLanguageGoogle == 'en'){
+              LoggerService:logError('TQR.eng', [
+                'method'        => __METHOD__ ,
+                'function'      => __FUNCTION__ ,
+                'line'          => __LINE__ ,
+                'clientCode'    => $clientCode,
+                'resourceType'  => $resourceType,
+                'subject'       => $subject,
+                'variant'       => $variant,
+                'message'       => 'targeLanguageGoogle is en',
+            ]);
+            return false;
+        }
         // Same hashing scheme as i18n_strings.keyHash (SHA-1 hex)
         $sourceKeyHash = sha1($stringKey !== '' ? $stringKey : $sourceText);
 

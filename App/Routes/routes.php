@@ -50,7 +50,7 @@ return function (RouteCollector $r) {
         $g->addRoute('GET', '/cron/{token}', function ($args) use ($container) {
             $processor = $container->get(\App\Controllers\TranslationQueueController::class);
              $c = $container->get(App\Controllers\TranslationQueueController::class);
-             return $c->run($args);
+             return $c->__invoke($args);
         });
 
         // Unified for interface + commonContent

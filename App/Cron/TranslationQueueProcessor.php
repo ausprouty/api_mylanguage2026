@@ -708,12 +708,11 @@ final class TranslationQueueProcessor
 
         if ($transient) {
             LoggerService::logDebugI18n('TQ-retry', [
-                 [
                 'method'   => __METHOD__ ,
                 'function' => __FUNCTION__ ,
                 'line'     => __LINE__ ,
                 'targetLang' => $targetLang,
-                'sourceText' => [$sourceText]
+                'sourceText' => [$sourceText],
                 'message' =>    $diag
                 ]);
             ++$this->retryable;
@@ -727,9 +726,9 @@ final class TranslationQueueProcessor
                 'function' => __FUNCTION__ ,
                 'line'     => __LINE__ ,
                 'targetLang' => $targetLang,
-                'sourceText' => [$sourceText]
+                'sourceText' => [$sourceText],
                 'message' =>  $diag
-                )] ;
+                ]) ;
         ++$this->permanent;
         $this->deadLetter($id, $diag);
         return;
