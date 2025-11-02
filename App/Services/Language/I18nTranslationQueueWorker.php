@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Services\Language;
 
 use App\Services\Database\DatabaseService;
+use App\Services\LoggerService;
 
 /**
  * I18nTranslationQueueWorker
@@ -54,6 +55,15 @@ final class I18nTranslationQueueWorker
              WHERE id = :id
                AND status = 'queued'
         ", [':who' => $workerName, ':id' => $id]);
+        LoggerService::logDebugI18n('ITQW.translate', [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'texts' => $texts,
+            'targetLanguage' => $targetLanguage,
+            'sourceLanguage' => $sourceLanguage,
+            'format'=> $format
+        ]);
         if ($locked === 0) return true;
 
         $attempts = ((int)($row['attempts'] ?? 0)) + 1;

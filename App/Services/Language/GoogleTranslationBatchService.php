@@ -56,7 +56,7 @@ class GoogleTranslationBatchService implements TranslationProvider
         string $format = 'text'
     ): array {
       
-        LoggerService::logDebugI18n('GoogleTranslateService.translate', [
+        LoggerService::logDebugI18n('GTS.translate', [
             'method'   => __METHOD__ ,
             'function' => __FUNCTION__ ,
             'line'     => __LINE__ ,
