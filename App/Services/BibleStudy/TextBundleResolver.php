@@ -6,6 +6,7 @@ namespace App\Services\BibleStudy;
 
 use App\Contracts\Templates\TemplateAssemblyService;          // ← interface FQCN
 use App\Contracts\Translation\TranslationService;
+use App\Services\LoggerService;
 use Psr\SimpleCache\CacheInterface;
 
 final class TextBundleResolver
@@ -38,6 +39,12 @@ final class TextBundleResolver
         }
 
         $isBaseLang  = ($languageCodeHL === $this->translator->baseLanguage());
+        LoggerService::logDebugI18n('TBR.base', [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'baseLanguage'   => $this->translator->baseLanguage(),
+        ]);
         $variant = \App\Support\i18n\Normalize::normalizeVariant($variant);
         $hasVariant  = $variant !== 'default';
         $normVariant = $hasVariant ? $variant : 'default';
@@ -73,6 +80,12 @@ final class TextBundleResolver
             // Client identity by code (translator will resolve to clientId)
             'clientCode'      => $clientCode,
         ];
+        LoggerService::logDebugI18n('TBR.ctx', [
+            'method'   => __METHOD__ ,
+            'function' => __FUNCTION__ ,
+            'line'     => __LINE__ ,
+            'ctx'   => $ctx,
+        ]);
 
         \App\Support\Trace::info('TextBundleResolver decision', [
             'kind'         => $kind,
@@ -100,6 +113,12 @@ final class TextBundleResolver
             }
             $out = $base;
             $etag = $this->etag($out, $ver);
+            LoggerService::logDebugI18n('TBR.outEn', [
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
+                'out'      => $out,
+            ]);
             return ['data' => $out, 'etag' => $etag];
         }
 
