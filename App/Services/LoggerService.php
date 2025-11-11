@@ -51,7 +51,10 @@ class LoggerService
     private static ?string $mirrorFile  = null;
 
     // setting for debugging translation files
-     private static ?bool $i18nDebugEnabled = null;
+    private static ?bool $i18nDebugEnabled = null;
+
+    // setting for debugging cron token flow
+    private static ?bool $cronTokenDebugEnabled = null;
 
     /** Level mapping: debug(10) < info(20) < warning(30) < error(40) < critical(50) */
     private static function levelNum(string $lvl): int
@@ -259,6 +262,43 @@ class LoggerService
     }
 
     /**
+    * Debug logging for cron token flow.
+    *
+    * Controlled by Config key: logging.cron_token_debug (bool).
+    * If disabled, this is a no-op.
+    *
+    * $ctx may be an array OR a callable returning array so you can
+    * defer building expensive context until logging is enabled.
+    */
+    public static function logDebugCronToken(
+        string $tag,
+        string|int|float|bool|array|callable|null $ctx = null
+    ) : void {
+        if (!self::isCronTokenDebugEnabled()) {
+            return;
+        }
+
+        $payload = [];
+
+        if (is_array($ctx)) {
+            $payload = $ctx;
+        } elseif (is_callable($ctx)) {
+            try {
+                $v = $ctx();
+                $payload = is_array($v) ? $v : ['msg' => (string) $v];
+            } catch (\Throwable $e) {
+                $payload = ['err' => $e->getMessage()];
+            }
+        } elseif ($ctx !== null) {
+            // Accept scalars like int/float/bool/string
+            // and anything stringable.
+            $payload = ['msg' => (string) $ctx];
+        }
+
+        self::log('DEBUG', 'cronToken.' . $tag, 'CronToken', $payload);
+    }
+
+    /**
      * True when logging.i18n_debug is on.
      * Value is cached after first read for performance.
      */
@@ -278,6 +318,26 @@ class LoggerService
     public static function setI18nDebugEnabled(?bool $state) : void
     {
         self::$i18nDebugEnabled = $state;
+    }
+
+    public static function isCronTokenDebugEnabled() : bool
+    {
+        if (self::$cronTokenDebugEnabled === null) {
+            self::$cronTokenDebugEnabled =
+                \App\Configuration\Config::getBool(
+                    'logging.cron_token_debug',
+                    false
+                );
+        }
+        return self::$cronTokenDebugEnabled;
+    }
+
+    /**
+     * Allow tests/CLI to force or clear the flag cache at runtime.
+     */
+    public static function setCronTokenDebugEnabled(?bool $state) : void
+    {
+        self::$cronTokenDebugEnabled = $state;
     }
  
 
@@ -484,6 +544,15 @@ class LoggerService
             }
             $ctx['callerClass'] = $ctx['callerClass'] ?? $cls;
             $ctx['caller']      = $ctx['caller']      ?? ($cls . '::' . (string) $fun);
+            // Also expose method/function/line/file for convenience.
+            $ctx['method']      = $ctx['method']      ?? ($cls . '::' . (string) $fun);
+            $ctx['function']    = $ctx['function']    ?? (string) $fun;
+            if (!isset($ctx['line']) && isset($frame['line'])) {
+                $ctx['line'] = $frame['line'];
+            }
+            if (!isset($ctx['file']) && isset($frame['file'])) {
+                $ctx['file'] = $frame['file'];
+            }
             break;
         }
         return $ctx;

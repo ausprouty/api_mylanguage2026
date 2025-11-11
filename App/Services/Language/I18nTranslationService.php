@@ -96,9 +96,6 @@ class I18nTranslationService implements TranslationServiceContract
 
      
         LoggerService::logDebugI18n('I18nT.ctxids', [
-            'method'   => __METHOD__ ,
-            'function' => __FUNCTION__ ,
-            'line'     => __LINE__ ,
             'isBase'        => $isBase,
             'kind'          => $kind,
             'type'          => $resourceType,
@@ -132,9 +129,6 @@ class I18nTranslationService implements TranslationServiceContract
 
 
         LoggerService::logDebugI18n('I18nTr-ctx', [
-            'method'         => __METHOD__ ,
-            'function'       => __FUNCTION__ ,
-            'line'           => __LINE__ ,
             'resourceType'   => $resourceType,
             'resourceSubj'   => $resourceSubject,
             'variantForMeta' => $variantForMeta,
@@ -153,18 +147,12 @@ class I18nTranslationService implements TranslationServiceContract
         // ---- extract masters (respects exclude list) ------------------------
  
         LoggerService::logDebugI18n('I18nT.bundle (pre-extract)', [
-            'method'   => __METHOD__ ,
-            'function' => __FUNCTION__ ,
-            'line'     => __LINE__ ,
             'exclude'  => $excludeAll
         ]);
 
         $masters = $this->extractMasterTexts($bundle, $excludeAll);
         
         LoggerService::logDebugI18n('I18nTmasters (raw)', [
-            'method'   => __METHOD__ ,
-            'function' => __FUNCTION__ ,
-            'line'     => __LINE__ ,
             'masters'  => $masters
         ]);
        
@@ -179,9 +167,6 @@ class I18nTranslationService implements TranslationServiceContract
        
         LoggerService::logDebugI18n('I18nT.strngMap.keys.sample',
         [
-            'method'    => __METHOD__ ,
-            'function'  => __FUNCTION__ ,
-            'line'      => __LINE__ ,
             'keys'      =>  array_slice(array_keys($stringMap), 0, 10),
             'stringIds' =>  array_slice($stringIds, 0, 10)
         ]);
@@ -209,9 +194,6 @@ class I18nTranslationService implements TranslationServiceContract
             ->getCodeGoogleFromCodeHL($languageCodeHL) ?? '';
         if ($languageCodeGoogle === '') {
             LoggerService::logError('I18nTr.google', [
-                'method'          => __METHOD__ ,
-                'function'        => __FUNCTION__ ,
-                'line'            => __LINE__ ,
                 'languageCodeHL'   => $languageCodeHL,
                 'message'          => 'no valid languageCodeGoogle',
                
@@ -234,9 +216,6 @@ class I18nTranslationService implements TranslationServiceContract
         }
 
         LoggerService::logDebugI18n('I18nT.stringIds', [
-                'method'   => __METHOD__ ,
-                'function' => __FUNCTION__ ,
-                'line'     => __LINE__ ,
                 'stingId'  => $stringIds
         ]); 
 
@@ -244,9 +223,6 @@ class I18nTranslationService implements TranslationServiceContract
          $rowsGoogle = $this->translations
             ->fetchByStringIdsAndLanguageGoogle($stringIds, $languageCodeGoogle);
         LoggerService::logDebugI18n('I18nT.rowsGoogle',[
-            'method'   => __METHOD__ ,
-            'function' => __FUNCTION__ ,
-            'line'     => __LINE__ , 
             'rows'     => $rowsGoogle
         ]);
 
@@ -339,9 +315,6 @@ class I18nTranslationService implements TranslationServiceContract
         if ($keysMissing > 0) {
             $cronToken = $this->cronTokenService->issueCronKey();
             LoggerService::logDebugI18n('ITS.cronKey', [
-                'method'   => __METHOD__ ,
-                'function' => __FUNCTION__ ,
-                'line'     => __LINE__ ,
                 'token' => $cronToken ,
             ]);
         }
@@ -398,9 +371,6 @@ class I18nTranslationService implements TranslationServiceContract
         }
 
         LoggerService::logDebugI18n('I18nT.hashToText', [
-            'method'   => __METHOD__ ,
-            'function' => __FUNCTION__ ,
-            'line'     => __LINE__ ,
             'hash'     => $hashToText
         ]); 
 
@@ -408,9 +378,6 @@ class I18nTranslationService implements TranslationServiceContract
         // 2) Read existing rows for these hashes (scope by clientId/resourceId)
         [$in, $params] = $this->buildInParams(array_keys($hashToText), 'h');
         LoggerService::logDebugI18n('I18nT.in',[
-            'method'   => __METHOD__ ,
-            'function' => __FUNCTION__ ,
-            'line'     => __LINE__ , 
             'in'     => $in
         ]); 
 
@@ -424,9 +391,6 @@ class I18nTranslationService implements TranslationServiceContract
             $params
         ));
        LoggerService::logDebugI18n('I18nT.params', [
-            'method'   => __METHOD__ ,
-            'function' => __FUNCTION__ ,
-            'line'     => __LINE__ ,
             'params'   => $params
         ]);
         $haveId   = []; // keyHash => stringId
@@ -437,9 +401,6 @@ class I18nTranslationService implements TranslationServiceContract
             $haveText[$kh] = (string)$row['englishText'];
         }
         LoggerService::logDebugI18n('I18nT.params', [
-            'method'   => __METHOD__ ,
-            'function' => __FUNCTION__ ,
-            'line'     => __LINE__ ,
             'params'   => $params
         ]);
         // 3) Insert truly missing rows (no ON DUPLICATE to avoid burning AUTO_INCREMENT)
@@ -458,9 +419,6 @@ class I18nTranslationService implements TranslationServiceContract
               )"
         );
         LoggerService::logDebugI18n('I18nT.params', [
-            'method'   => __METHOD__ ,
-            'function' => __FUNCTION__ ,
-            'line'     => __LINE__ ,
             'params'   => $params
         ]);
         foreach ($hashToText as $h => $t) {
@@ -485,9 +443,6 @@ class I18nTranslationService implements TranslationServiceContract
             }
         }
         LoggerService::logDebugI18n('I18nT.resourceId', [
-            'method'   => __METHOD__ ,
-            'function' => __FUNCTION__ ,
-            'line'     => __LINE__ ,
             'resourceId' => $resourceId
         ]);
         // 4) Update text only if it changed (no id burn)
@@ -711,16 +666,15 @@ class I18nTranslationService implements TranslationServiceContract
         int    $priority = 0
     ): void {
         if ($targetLanguageGoogle == 'en'){
-            LoggerService::logError ('ITS.eng', [
-                'method'        => __METHOD__ ,
-                'function'      => __FUNCTION__ ,
-                'line'          => __LINE__ ,
+            // we don't translate English
+            LoggerService::logDebugI18n ('ITS.eng', [
                 'clientCode'    => $clientCode,
                 'resourceType'  => $resourceType,
                 'subject'       => $subject,
                 'variant'       => $variantCode,
-                'message'  => 'targeLanguageGoogle is en',
+                'message'       => 'targeLanguageGoogle is en'
             ]);
+
             return;
         }
         $sql = "

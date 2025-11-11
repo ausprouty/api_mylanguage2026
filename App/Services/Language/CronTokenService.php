@@ -21,9 +21,21 @@ final class CronTokenService
    {
         $t = (string)($args['token'] ?? '');
         if ($t !== '') {
+            LoggerService::logDebugCronToken('cron.token', 
+             [
+                'message'  => 'token in args',
+                'token'    => $t
+
+            ]);
             return $t;
         }
         $hdr = $_SERVER['HTTP_X_CRON_TOKEN'] ?? '';
+        LoggerService::logDebugCronToken('cron.token', 
+             [
+                'message'  => 'token in HTTP_X_CRON_TOKEN',
+                'token'    => trim($hdr)
+
+            ]);
         return is_string($hdr) ? trim($hdr) : '';
     }
 
@@ -34,35 +46,25 @@ final class CronTokenService
     public function authorizeOnce(string $token): bool
     {
         if ($token === '') {
-            LoggerService::logError('cron.token.auth.fail', 
+            LoggerService::logDebugCronToken('cron.token.auth.fail', 
              [
-                'method'   => __METHOD__ ,
-                'function' => __FUNCTION__ ,
-                'line'     => __LINE__ ,
-                'message'  => 'cron.token.auth.fail',
-                'token'    => $token,
                 'message' => 'token is blank'
             ]);
             return false;
         }
         // (Optional) fast reject on clearly invalid format (tweak as needed)
         if (!preg_match('/^[0-9a-f]{32}$/i', $token)) {
-            LoggerService::logError ('cron.token.auth.fail',  [
-                'method'   => __METHOD__ ,
-                'function' => __FUNCTION__ ,
-                'line'     => __LINE__ ,
-                'message'  => 'token does not match pattern',
+            LoggerService::logDebugCronToken ('cron.token.auth.fail',  [
+                'message'  => 'token does not valid pattern for 32',
+                'token'    =>  $token,
             
             ]);
              return false;
          }
-          LoggerService::logDebugI18n ('check token',  [
-                'method'   => __METHOD__ ,
-                'function' => __FUNCTION__ ,
-                'line'     => __LINE__ ,
-                'token'  => $token,
-            
-            ]);
+        LoggerService::logDebugI18n ('token valid form',  [
+            'token'  => $token,
+        
+        ]);
         $pdo = $this->db->getPdo();
         $stmt = $pdo->prepare(
             'DELETE FROM cron_tokens WHERE token = :t LIMIT 1'
@@ -72,11 +74,8 @@ final class CronTokenService
         
         $ok = $stmt->rowCount() === 1;
         if (!$ok) {
-            LoggerService::logError('cron.token.auth.fail', 
+            LoggerService::logDebugCronToken('cron.token.delete.fail', 
              [
-                'method'   => __METHOD__ ,
-                'function' => __FUNCTION__ ,
-                'line'     => __LINE__ ,
                 'message'  => 'cron.token.auth.fail',
                 'token'    => $token,
                 'token.len' => strlen($token)
@@ -93,6 +92,12 @@ final class CronTokenService
     public function issueCronKey(): ?string
     {
         $token = $this->generateRandomToken(16); // 32 hex chars
+        LoggerService::logDebugCronToken('cron.token.new', 
+             [
+                'message'  => 'cron.token.new',
+                'token'    => $token,
+                'token.len' => strlen($token)
+        ]);
         try {
             $stmt = $this->db->prepare(
                 "INSERT INTO cron_tokens (token) VALUES (:t)"
@@ -100,10 +105,7 @@ final class CronTokenService
             $stmt->execute([':t' => $token]);
            return $token;
         } catch (\Throwable $e) {
-            LoggerService::logError('CTS.cronKey', [
-                'method'   => __METHOD__ ,
-                'function' => __FUNCTION__ ,
-                'line'     => __LINE__ ,
+            LoggerService::logDebugCronToken('CTS.cronKey', [
                 'err' => $e->getMessage(),
                 ]);
             return null;
