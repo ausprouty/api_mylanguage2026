@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace App\Security;
+namespace App\Services\Language;
 
 use App\Services\Database\DatabaseService;
 use App\Services\LoggerService;
 use PDO;
 
 
-final class CronTokenGuard
+final class CronTokenService
 {
     public function __construct(
         private DatabaseService $db,
@@ -46,7 +46,7 @@ final class CronTokenGuard
             return false;
         }
         // (Optional) fast reject on clearly invalid format (tweak as needed)
-        if (!preg_match('/^[0-9a-f]{64}$/i', $token)) {
+        if (!preg_match('/^[0-9a-f]{32}$/i', $token)) {
             LoggerService::logError ('cron.token.auth.fail',  [
                 'method'   => __METHOD__ ,
                 'function' => __FUNCTION__ ,
@@ -85,4 +85,36 @@ final class CronTokenGuard
         return $ok;
     }
 
+    /**
+     * Create a one-time token in cron_tokens. Returns the token string or null.
+     * Schema expected:
+     *   cron_tokens(id PK AUTO_INCREMENT, token VARCHAR(64) UNIQUE, created_at TIMESTAMP)
+     */
+    public function issueCronKey(): ?string
+    {
+        $token = $this->generateRandomToken(16); // 32 hex chars
+        try {
+            $stmt = $this->db->prepare(
+                "INSERT INTO cron_tokens (token) VALUES (:t)"
+            );
+            $stmt->execute([':t' => $token]);
+           return $token;
+        } catch (\Throwable $e) {
+            LoggerService::logError('CTS.cronKey', [
+                'method'   => __METHOD__ ,
+                'function' => __FUNCTION__ ,
+                'line'     => __LINE__ ,
+                'err' => $e->getMessage(),
+                ]);
+            return null;
+        }
+    }
+
+    /** Generate a cryptographically random hex token of $bytes bytes. */
+    private function generateRandomToken(int $bytes = 16): string
+    {
+        return bin2hex(random_bytes(max(8, $bytes)));
+    }
+
 }   
+

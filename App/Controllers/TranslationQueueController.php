@@ -5,7 +5,7 @@ namespace App\Controllers;
 
 use App\Configuration\Config;
 use App\Cron\TranslationQueueProcessor;
-use App\Security\CronTokenGuard;
+use App\Services\Language\CronTokenService;
 use App\Services\Database\DatabaseService;
 use App\Services\LoggerService;
 use PDO;
@@ -16,7 +16,7 @@ final class TranslationQueueController
         private DatabaseService $db,
         private LoggerService $log,
         private TranslationQueueProcessor $processor,
-        private CronTokenGuard $guard,
+        private CronTokenService $guard,
     ) {}
 
     /**
@@ -24,11 +24,18 @@ final class TranslationQueueController
      * Accepts token via route {token} or X-CRON-TOKEN header.
      */
     public function __invoke(array $args = []): void
-    {
+    {  
         $token = $this->guard->extractToken($args);
+        LoggerService::logDebug('TranslationQueue.token', [
+            'token' => $token,
+            'args'  => $args
+        ]);
         if (!$this->guard->authorizeOnce($token)) {
+            LoggerService::logDebug('TranslationQueue.token.fail', [
+                'token' => $token,
+            ]);
             http_response_code(403);
-            echo json_encode(['ok' => false, 'error' => 'forbidden']);
+            echo json_encode(['ok' => false, 'error' =>  $token . ' token did not match']);
             return;
         }
         $this->processor->runOnce();

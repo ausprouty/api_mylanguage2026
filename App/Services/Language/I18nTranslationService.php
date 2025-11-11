@@ -4,29 +4,34 @@ declare(strict_types=1);
 
 namespace App\Services\Language;
 
+use App\Configuration\Config;
 use App\Contracts\Translation\TranslationService as TranslationServiceContract;
 use App\Repositories\I18nStringsRepository;       // kept for compatibility (not strictly required)
 use App\Repositories\I18nTranslationsRepository;
 use App\Repositories\I18nClientsRepository;
 use App\Repositories\I18nResourcesRepository;
 use App\Repositories\LanguageRepository;
+use App\Services\Language\CronTokenService;
 use App\Services\Database\DatabaseService;
-use App\Services\LoggerService as Log;
+use App\Services\LoggerService;
 use App\Support\Async;
 use App\Support\i18n\ExcludeKeyMatcher;
 use App\Support\i18n\Normalize;
-use App\Configuration\Config;
+
 
 class I18nTranslationService implements TranslationServiceContract
 {
     public function __construct(
+        private CronTokenService           $cronTokenService,
+        private DatabaseService            $db,
         private I18nStringsRepository      $strings,      // not required by this implementation but left for DI BC
         private I18nTranslationsRepository $translations,
         private I18nClientsRepository      $clients,
         private I18nResourcesRepository    $resources,
-        private DatabaseService            $db,
+      
         private LanguageRepository         $languages,
         private string                     $baseLanguage = 'eng00'
+
     ) {}
 
     public function baseLanguage(): string
@@ -90,7 +95,7 @@ class I18nTranslationService implements TranslationServiceContract
         );
 
      
-        Log::logDebugI18n('I18nT.ctxids', [
+        LoggerService::logDebugI18n('I18nT.ctxids', [
             'method'   => __METHOD__ ,
             'function' => __FUNCTION__ ,
             'line'     => __LINE__ ,
@@ -126,16 +131,16 @@ class I18nTranslationService implements TranslationServiceContract
         );
 
 
-        Log::logDebugI18n('I18nTr-ctx', [
-            'method'   => __METHOD__ ,
-            'function' => __FUNCTION__ ,
-            'line'     => __LINE__ ,
-            'resourceType' => $resourceType,
-            'resourceSubj' => $resourceSubject,
+        LoggerService::logDebugI18n('I18nTr-ctx', [
+            'method'         => __METHOD__ ,
+            'function'       => __FUNCTION__ ,
+            'line'           => __LINE__ ,
+            'resourceType'   => $resourceType,
+            'resourceSubj'   => $resourceSubject,
             'variantForMeta' => $variantForMeta,
-            'clientCode'   => $clientCodeForStorage,
-            'clientId'     => $clientId,
-            'resourceId'   => $resourceId,
+            'clientCode'     => $clientCodeForStorage,
+            'clientId'       => $clientId,
+            'resourceId'     => $resourceId,
         ]);
 
         // ---- excludes (bundle + .env/config) --------------------------------
@@ -147,16 +152,16 @@ class I18nTranslationService implements TranslationServiceContract
 
         // ---- extract masters (respects exclude list) ------------------------
  
-        Log::logDebugI18n('I18nT.bundle (pre-extract)', [
+        LoggerService::logDebugI18n('I18nT.bundle (pre-extract)', [
             'method'   => __METHOD__ ,
             'function' => __FUNCTION__ ,
             'line'     => __LINE__ ,
-            'exclude' => $excludeAll
+            'exclude'  => $excludeAll
         ]);
 
         $masters = $this->extractMasterTexts($bundle, $excludeAll);
         
-        Log::logDebugI18n('I18nTmasters (raw)', [
+        LoggerService::logDebugI18n('I18nTmasters (raw)', [
             'method'   => __METHOD__ ,
             'function' => __FUNCTION__ ,
             'line'     => __LINE__ ,
@@ -169,10 +174,10 @@ class I18nTranslationService implements TranslationServiceContract
             $clientId,
             $resourceId,
             $masters,
-            $dbg
+            $dbg = false
         );
        
-        Log::logDebugI18n('I18nT.strngMap.keys.sample',
+        LoggerService::logDebugI18n('I18nT.strngMap.keys.sample',
         [
             'method'    => __METHOD__ ,
             'function'  => __FUNCTION__ ,
@@ -203,12 +208,12 @@ class I18nTranslationService implements TranslationServiceContract
         $languageCodeGoogle = $this->languages
             ->getCodeGoogleFromCodeHL($languageCodeHL) ?? '';
         if ($languageCodeGoogle === '') {
-            Log::logError('I18nTr.google', [
-                'method'   => __METHOD__ ,
-                'function' => __FUNCTION__ ,
-                'line'     => __LINE__ ,
+            LoggerService::logError('I18nTr.google', [
+                'method'          => __METHOD__ ,
+                'function'        => __FUNCTION__ ,
+                'line'            => __LINE__ ,
                 'languageCodeHL'   => $languageCodeHL,
-                'message'     => 'no valid languageCodeGoogle',
+                'message'          => 'no valid languageCodeGoogle',
                
             ]);
             $languageCodeGoogle = 'en';
@@ -228,7 +233,7 @@ class I18nTranslationService implements TranslationServiceContract
             ]);
         }
 
-        Log::logDebugI18n('I18nT.stringIds', [
+        LoggerService::logDebugI18n('I18nT.stringIds', [
                 'method'   => __METHOD__ ,
                 'function' => __FUNCTION__ ,
                 'line'     => __LINE__ ,
@@ -238,7 +243,7 @@ class I18nTranslationService implements TranslationServiceContract
         // ---- fetch translations (Google-only) -------------------------------
          $rowsGoogle = $this->translations
             ->fetchByStringIdsAndLanguageGoogle($stringIds, $languageCodeGoogle);
-        Log::logDebugI18n('I18nT.rowsGoogle',[
+        LoggerService::logDebugI18n('I18nT.rowsGoogle',[
             'method'   => __METHOD__ ,
             'function' => __FUNCTION__ ,
             'line'     => __LINE__ , 
@@ -332,8 +337,8 @@ class I18nTranslationService implements TranslationServiceContract
         // can trigger the next background translation chunk.
         $cronToken = null;
         if ($keysMissing > 0) {
-            $cronToken = $this->issueCronKey();
-            LoggerService::logDebugI18nI18n('ITS.cronKey', [
+            $cronToken = $this->cronTokenService->issueCronKey();
+            LoggerService::logDebugI18n('ITS.cronKey', [
                 'method'   => __METHOD__ ,
                 'function' => __FUNCTION__ ,
                 'line'     => __LINE__ ,
@@ -346,9 +351,9 @@ class I18nTranslationService implements TranslationServiceContract
             'resourceSubject'      => $resourceSubject,
             'resourceVariant'      => $variantForMeta,
             'clientCode'           => $clientCode,
-            'languageName'         => $languages->getEnglishNameForLanguageCodeHL($languageCodeHL),
+            'languageName'         => $this->languages->getEnglishNameForLanguageCodeHL($languageCodeHL),
             'languageCodeHL'       => $languageCodeHL,
-            'languageCodeISO'      =>  $languages->getCodeIsoFromCodeHL($languageCodeHL),
+            'languageCodeISO'      =>  $this->languages->getCodeIsoFromCodeHL($languageCodeHL),
             'languageCodeGoogle'   => $languageCodeGoogle,
             'variant'              => $normVariant,
             'keysTotal'            => $keysTotal,
@@ -392,7 +397,7 @@ class I18nTranslationService implements TranslationServiceContract
             return [[], []];
         }
 
-        Log::logDebugI18n('I18nT.hashToText', [
+        LoggerService::logDebugI18n('I18nT.hashToText', [
             'method'   => __METHOD__ ,
             'function' => __FUNCTION__ ,
             'line'     => __LINE__ ,
@@ -402,7 +407,7 @@ class I18nTranslationService implements TranslationServiceContract
 
         // 2) Read existing rows for these hashes (scope by clientId/resourceId)
         [$in, $params] = $this->buildInParams(array_keys($hashToText), 'h');
-        Log::logDebugI18n('I18nT.in',[
+        LoggerService::logDebugI18n('I18nT.in',[
             'method'   => __METHOD__ ,
             'function' => __FUNCTION__ ,
             'line'     => __LINE__ , 
@@ -418,7 +423,7 @@ class I18nTranslationService implements TranslationServiceContract
             ['c' => $clientId, 'r' => $resourceId],
             $params
         ));
-       Log::logDebugI18n('I18nT.params', [
+       LoggerService::logDebugI18n('I18nT.params', [
             'method'   => __METHOD__ ,
             'function' => __FUNCTION__ ,
             'line'     => __LINE__ ,
@@ -431,7 +436,7 @@ class I18nTranslationService implements TranslationServiceContract
             $haveId[$kh]   = (int)$row['stringId'];
             $haveText[$kh] = (string)$row['englishText'];
         }
-        Log::logDebugI18n('I18nT.params', [
+        LoggerService::logDebugI18n('I18nT.params', [
             'method'   => __METHOD__ ,
             'function' => __FUNCTION__ ,
             'line'     => __LINE__ ,
@@ -452,7 +457,7 @@ class I18nTranslationService implements TranslationServiceContract
                        AND keyHash = :h_chk
               )"
         );
-        Log::logDebugI18n('I18nT.params', [
+        LoggerService::logDebugI18n('I18nT.params', [
             'method'   => __METHOD__ ,
             'function' => __FUNCTION__ ,
             'line'     => __LINE__ ,
@@ -479,7 +484,7 @@ class I18nTranslationService implements TranslationServiceContract
                 }
             }
         }
-        Log::logDebugI18n('I18nT.resourceId', [
+        LoggerService::logDebugI18n('I18nT.resourceId', [
             'method'   => __METHOD__ ,
             'function' => __FUNCTION__ ,
             'line'     => __LINE__ ,
@@ -535,7 +540,7 @@ class I18nTranslationService implements TranslationServiceContract
         }
         $stringIds = array_values(array_unique(array_values($stringMap)));
 
-        Log::logDebugI18n('I18nT.ensure', [
+        LoggerService::logDebugI18n('I18nT.ensure', [
             'masters'   => count($masters),
             'hashes'    => count($hashToText),
             'mapped'    => count($stringIds),
@@ -564,7 +569,7 @@ class I18nTranslationService implements TranslationServiceContract
             ];
         }
 
-        //Log::logDebugI18n('I18nTranslationService-319', 'ensureMastersAndMap', [
+        //LoggerService::logDebugI18n('I18nTranslationService-319', 'ensureMastersAndMap', [
             //    'bundle'   => $bundle,
             //    'out'    => $out,
             //]);
@@ -706,7 +711,7 @@ class I18nTranslationService implements TranslationServiceContract
         int    $priority = 0
     ): void {
         if ($targetLanguageGoogle == 'en'){
-            Log::logError ('ITS.eng', [
+            LoggerService::logError ('ITS.eng', [
                 'method'        => __METHOD__ ,
                 'function'      => __FUNCTION__ ,
                 'line'          => __LINE__ ,
@@ -794,7 +799,7 @@ class I18nTranslationService implements TranslationServiceContract
         string $variant,
         string $lang
     ): void {
-        //Log::logDebugI18n('kickQueueWorker-575', 'entred', [$lang]);
+        //LoggerService::logDebugI18n('kickQueueWorker-575', 'entred', [$lang]);
         // Safe getter: return $default if key missing.
         $cfg = static function (string $key, mixed $default = null): mixed {
             try { return Config::get($key); } catch (\Throwable $e) { return $default; }
@@ -836,8 +841,8 @@ class I18nTranslationService implements TranslationServiceContract
                 $prodRunner = $runnerCfg;
             }
         }
-        // Log::logDebugI18n('kickQueueWorker-615', 'devRunner',  [$devRunner]);
-        // Log::logDebugI18n('kickQueueWorker-616', 'prodRunner',  [$prodRunner]);
+        // LoggerService::logDebugI18n('kickQueueWorker-615', 'devRunner',  [$devRunner]);
+        // LoggerService::logDebugI18n('kickQueueWorker-616', 'prodRunner',  [$prodRunner]);
 
         // Filters for the dev runner; cron runner doesn't take these.
         $filterArgs = [
@@ -861,8 +866,8 @@ class I18nTranslationService implements TranslationServiceContract
       
         if ($isDev && $kickDev) {
             if (file_exists($devRunner)) {
-                //Log::logDebugI18n('i18nTranslationService-740', 'devArgs',  [$devArgs]);
-                //Log::logDebugI18n('i18nTranslationService-741', 'devRuner',  [$devRunner]);
+                //LoggerService::logDebugI18n('i18nTranslationService-740', 'devArgs',  [$devArgs]);
+                //LoggerService::logDebugI18n('i18nTranslationService-741', 'devRuner',  [$devRunner]);
                 $pid = \App\Support\Async::php(
                     $devRunner,     // e.g., C:\ampp82\htdocs\api_mylanguage\bin\run-translation-queue.php
                     $devArgs,       // e.g., ['--max-secs=30','--batch-size=50']
@@ -870,8 +875,8 @@ class I18nTranslationService implements TranslationServiceContract
                     $base_dir       // working dir (optional)
                 );
                 // optional: log PID if returned
-                if ($pid) { Log::logInfo('i18nTranslationService-748', ['pid' => $pid]); }
-                //Log::logInfo('i18nTranslationService-749', 'Async Finished');
+                if ($pid) { LoggerService::logInfo('i18nTranslationService-748', ['pid' => $pid]); }
+                //LoggerService::logInfo('i18nTranslationService-749', 'Async Finished');
             }
             return;
         }
@@ -899,36 +904,7 @@ class I18nTranslationService implements TranslationServiceContract
 
         // Default in prod: rely on cron; no-op here.
     }
-    /**
-     * Create a one-time token in cron_tokens. Returns the token string or null.
-     * Schema expected:
-     *   cron_tokens(id PK AUTO_INCREMENT, token VARCHAR(64) UNIQUE, created_at TIMESTAMP)
-     */
-    private function issueCronKey(): ?string
-    {
-        $token = $this->generateRandomToken(32); // 64 hex chars
-        try {
-            $stmt = $this->db->prepare(
-                "INSERT INTO cron_tokens (token) VALUES (:t)"
-            );
-            $stmt->execute([':t' => $token]);
-           return $token;
-        } catch (\Throwable $e) {
-            Log::logError('I18nT.cron', [
-                'method'   => __METHOD__ ,
-                'function' => __FUNCTION__ ,
-                'line'     => __LINE__ ,
-                'err' => $e->getMessage(),
-                ]);
-            return null;
-        }
-    }
-
-    /** Generate a cryptographically random hex token of $bytes bytes. */
-    private function generateRandomToken(int $bytes = 16): string
-    {
-        return bin2hex(random_bytes(max(8, $bytes)));
-    }
+    
     
 
     /**
