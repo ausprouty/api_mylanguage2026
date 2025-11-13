@@ -46,7 +46,7 @@ final class CronTokenService
     public function authorizeOnce(string $token): bool
     {
         if ($token === '') {
-            LoggerService::logDebugCronToken('cron.token.auth.fail', 
+            LoggerService::logDebugCronToken('CTS.auth.fail', 
              [
                 'message' => 'token is blank'
             ]);
@@ -54,14 +54,14 @@ final class CronTokenService
         }
         // (Optional) fast reject on clearly invalid format (tweak as needed)
         if (!preg_match('/^[0-9a-f]{32}$/i', $token)) {
-            LoggerService::logDebugCronToken ('cron.token.auth.fail',  [
+            LoggerService::logDebugCronToken ('CTS.auth.fail',  [
                 'message'  => 'token does not valid pattern for 32',
                 'token'    =>  $token,
             
             ]);
              return false;
          }
-        LoggerService::logDebugI18n ('token valid form',  [
+        LoggerService::logDebugCronToken('cron.token.delete',  [
             'token'  => $token,
         
         ]);
@@ -74,9 +74,9 @@ final class CronTokenService
         
         $ok = $stmt->rowCount() === 1;
         if (!$ok) {
-            LoggerService::logDebugCronToken('cron.token.delete.fail', 
+            LoggerService::logDebugCronToken('CTS.delete.fail', 
              [
-                'message'  => 'cron.token.auth.fail',
+                'message'  => 'cron.token.delete.fail',
                 'token'    => $token,
                 'token.len' => strlen($token)
             ]);
@@ -92,7 +92,7 @@ final class CronTokenService
     public function issueCronKey(): ?string
     {
         $token = $this->generateRandomToken(16); // 32 hex chars
-        LoggerService::logDebugCronToken('cron.token.new', 
+        LoggerService::logDebugCronToken('CTS.token.new', 
              [
                 'message'  => 'cron.token.new',
                 'token'    => $token,
@@ -105,7 +105,7 @@ final class CronTokenService
             $stmt->execute([':t' => $token]);
            return $token;
         } catch (\Throwable $e) {
-            LoggerService::logDebugCronToken('CTS.cronKey', [
+            LoggerService::logDebugCronToken('CTS.error', [
                 'err' => $e->getMessage(),
                 ]);
             return null;

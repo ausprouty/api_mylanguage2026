@@ -311,15 +311,19 @@ class I18nTranslationService implements TranslationServiceContract
       
         // If there are still missing keys, issue a one-time cron token so the client
         // can trigger the next background translation chunk.
+        
+         // English is out base so it can never have items missing.
+        if ($languageCodeGoogle == 'en'){
+            $keysMissing = 0;
+        }
         $cronToken = null;
         if ($keysMissing > 0) {
             $cronToken = $this->cronTokenService->issueCronKey();
-            LoggerService::logDebugI18n('ITS.cronKey', [
-                'token' => $cronToken ,
-            ]);
         }
-
-    
+        LoggerService::logDebugCronToken('ITS.cronKey', [
+            'token' => $cronToken ,
+        ]);
+       
         $out = $this->withMeta($out, [
             'resourceSubject'      => $resourceSubject,
             'resourceVariant'      => $variantForMeta,
@@ -335,6 +339,7 @@ class I18nTranslationService implements TranslationServiceContract
             'translationComplete'  => ($keysMissing === 0),
             'cronKey'              => $cronToken,
             'fallbackCount'        => $keysMissing,
+            'edited'               => 'tues pm'
         ]);
 
         return $out;
