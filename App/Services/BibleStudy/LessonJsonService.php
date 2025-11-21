@@ -46,7 +46,7 @@ class LessonJsonService
             }
             $meta = [
                'meta' => [
-                  'complete' => $complete
+                  'translationComplete' => $complete
                ]
             ];
             $mergedOutput = array_merge($bibleOutput, $videoOutput, $meta);

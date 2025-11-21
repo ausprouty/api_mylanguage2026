@@ -2,6 +2,12 @@
 declare(strict_types=1);
 
 
+use App\Cron\TranslationQueueProcessor;
+use App\Configuration\Config;
+use DI\ContainerBuilder;
+
+
+
 
 // ===== Project-scoped logging defaults (before anything else) =====
 // All logs live under the working dir: /home/mylanguagenet/api2.mylanguage.net.au/logs
@@ -9,7 +15,6 @@ $__projectRoot = dirname(__DIR__);                 // …/api2.mylanguage.net.au
 $__logsDir     = $__projectRoot . '/logs';
 $__defaultLog  = $__logsDir . '/translation-a.log';
 $__log         = getenv('LOG_FILE') ?: $__defaultLog;   // ENV wins; otherwise project logs
-$__lock        = $__log . '.lock';
 $__lock        = $__log . '.lock';
 $__heartbeat   = $__logsDir . '/translation-cron.last';
 @mkdir($__logsDir, 0775, true);
@@ -54,10 +59,6 @@ __raw_log("BOOT launcher=".__FILE__." php=".PHP_BINARY." sapi=".PHP_SAPI);
  * Usage:
  *    php translation-cron.php --max-secs=55 --batch-size=120 [--dry-run]
  */
-
-use App\Cron\TranslationQueueProcessor;
-use App\Configuration\Config;
-use DI\ContainerBuilder;
 
 /**
  * Robust STDERR write for non-CLI contexts.
@@ -262,18 +263,18 @@ if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
     exit(0);
 }
 
-log_line('cron start APP_ENV=' . $appEnv .
-    ' maxSecs=' . $maxSecs .
-    ' batchSize=' . $batchSize .
-    ' dryRun=' . ($dryRun ? '1' : '0') .
-    ' cwd=' . getcwd());
+//log_line('cron start APP_ENV=' . $appEnv .
+//    ' maxSecs=' . $maxSecs .
+//    ' batchSize=' . $batchSize .
+//    ' dryRun=' . ($dryRun ? '1' : '0') .
+//    ' cwd=' . getcwd());
 // Show launcher + PHP binary + args up front
 global $argv;
-log_line('launcher=' . __FILE__ . ' sapi=' . PHP_SAPI . ' php=' . PHP_BINARY . ' args=' . (isset($argv) ? implode(' ', $argv) : ''));
+//log_line('launcher=' . __FILE__ . ' sapi=' . PHP_SAPI . ' php=' . PHP_BINARY . ' args=' . (isset($argv) ? implode(' ', $argv) : ''));
 try {
     // Show which class file is being used to rule out stale code
     $rc = new \ReflectionClass(TranslationQueueProcessor::class);
-    log_line('using class file=' . $rc->getFileName());
+    //log_line('using class file=' . $rc->getFileName());
 
     // Set an execution time limit slightly above the loop time
     @set_time_limit($maxSecs + 10);
@@ -294,15 +295,15 @@ try {
         usleep(200000);
     } while (time() < $deadline);
 
-    $elapsed = microtime(true) - $startedAt;
-    $mem = memory_get_peak_usage(true);
-    log_line(sprintf(
-        'cron done in %.3fs peakMem=%.1fMB',
-        $elapsed,
-        $mem / (1024 * 1024)
-    ));
+   // $elapsed = microtime(true) - $startedAt;
+   // $mem = memory_get_peak_usage(true);
+    // log_line(sprintf(
+    //    'cron done in %.3fs peakMem=%.1fMB',
+    //    $elapsed,
+    //    $mem / (1024 * 1024)
+    //));
     // Insert a blank line
-    log_line('');
+   //log_line('');
     exit(0);
 
 } catch (\Throwable $e) {

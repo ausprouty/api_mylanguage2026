@@ -330,7 +330,7 @@ class I18nTranslationService implements TranslationServiceContract
             'clientCode'           => $clientCode,
             'languageName'         => $this->languages->getEnglishNameForLanguageCodeHL($languageCodeHL),
             'languageCodeHL'       => $languageCodeHL,
-            'languageCodeISO'      =>  $this->languages->getCodeIsoFromCodeHL($languageCodeHL),
+            'languageCodeISO'      => $this->languages->getCodeIsoFromCodeHL($languageCodeHL),
             'languageCodeGoogle'   => $languageCodeGoogle,
             'variant'              => $normVariant,
             'keysTotal'            => $keysTotal,
