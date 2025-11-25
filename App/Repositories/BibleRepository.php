@@ -33,26 +33,76 @@ class BibleRepository extends BaseRepository
         }
     }
 
-    public function findBestBibleByLanguageCodeHL(string $languageCodeHL): ?BibleModel
-    {
-        $query = 'SELECT * FROM bibles WHERE languageCodeHL = :code 
-                  ORDER BY weight DESC LIMIT 1';
-        $params = [':code' => $languageCodeHL];
-        return $this->fetchAndPopulateModel($query, $params, BibleModel::class);
+    public function findBestBibleByLanguageCodeHL(
+        string $languageCodeHL
+    ): ?BibleModel {
+        $sql = '
+            SELECT b.*
+            FROM hl_languages AS hl
+            JOIN bibles AS b
+            ON (
+                -- Chinese: match on script (zh-CN / zh-TW)
+                (hl.isChinese = 1
+                    AND b.languageCodeGoogle = hl.languageCodeGoogle)
+                OR
+                -- Non-Chinese: match directly on HL code
+                (COALESCE(hl.isChinese, 0) = 0
+                    AND b.languageCodeHL = hl.languageCodeHL)
+                )
+            WHERE hl.languageCodeHL = :hl
+            ORDER BY b.weight DESC
+            LIMIT 1
+        ';
+
+        $params = [
+            ':hl' => $languageCodeHL,
+        ];
+
+        return $this->fetchAndPopulateModel(
+            $sql,
+            $params,
+            BibleModel::class
+        );
     }
 
-    public function findBestDbsBibleByLanguageCodeHL($code, $testament = 'C') : ?BibleModel
-    {
-        $query = 'SELECT * FROM bibles WHERE languageCodeHL = :code 
-                  AND (collectionCode = :complete OR collectionCode = :testament) 
-                  AND weight = 9 ORDER BY collectionCode DESC LIMIT 1';
+    public function findBestDbsBibleByLanguageCodeHL(
+        string $languageCodeHL,
+        string $testament = 'C'
+    ): ?BibleModel {
+        $sql = '
+            SELECT b.*
+            FROM hl_languages AS hl
+            JOIN bibles AS b
+            ON (
+                -- Chinese: match by script
+                (hl.isChinese = 1
+                    AND b.languageCodeGoogle = hl.languageCodeGoogle)
+                OR
+                -- Non-Chinese: match by HL code
+                (COALESCE(hl.isChinese, 0) = 0
+                    AND b.languageCodeHL = hl.languageCodeHL)
+                )
+            WHERE hl.languageCodeHL = :hl
+            AND (b.collectionCode = :complete
+                OR b.collectionCode = :testament)
+            AND b.weight = 9
+            ORDER BY b.collectionCode DESC
+            LIMIT 1
+        ';
+
         $params = [
-            ':code' => $code,
-            ':complete' => 'C',
-            ':testament' => $testament
+            ':hl'        => $languageCodeHL,
+            ':complete'  => 'C',
+            ':testament' => $testament,
         ];
-        return $this->fetchAndPopulateModel($query, $params, BibleModel::class);
+
+        return $this->fetchAndPopulateModel(
+            $sql,
+            $params,
+            BibleModel::class
+        );
     }
+
 
     public function findBibleByBid($bid): ?BibleModel
     {
