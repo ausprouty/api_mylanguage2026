@@ -99,7 +99,7 @@ class DbsLanguageRepository extends BaseRepository
         $result = $this->databaseService->fetchAll($query, $params);
 
         $output = [];
-        $translation_dir = Config::getDir('resources.translations') . 'languages/';
+       
 
         foreach ($result as $language) {
             if ($language['isChinese'] == 1){

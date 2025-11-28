@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__ . '/../Vendor/autoload.php';  // lowercase "vendor" is correct
+require_once __DIR__ . '/../vendor/autoload.php';  // lowercase "vendor" is correct
 
 use ScriptsTemporary\ImportToTranslationMemory;
 use App\Configuration\Config;

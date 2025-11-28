@@ -1,6 +1,6 @@
 <?php
 
-namespace ScriptsTemporary;
+namespace scripts;
 
 use App\Services\Database\DatabaseService;
 
