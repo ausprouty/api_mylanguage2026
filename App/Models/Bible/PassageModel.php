@@ -95,7 +95,10 @@ class PassageModel implements JsonSerializable
     { $this->passageUrl = $url; }
 
     public function setReferenceLocalLanguage(string $ref): void
-    { $this->referenceLocalLanguage = $ref; }
+    {
+        $this->referenceLocalLanguage =
+            $this->normalizeReferenceLocalLanguage($ref);
+    }
 
     public function setTimesUsed(int $times): void
     { $this->timesUsed = $times; }
@@ -134,5 +137,36 @@ class PassageModel implements JsonSerializable
                 "Invalid date format for {$field}; expected YYYY-MM-DD"
             );
         }
+    }
+
+        /**
+     * Normalise the local-language reference so it only contains
+     * "BookName Chapter[:Verse[-Verse]]" and strips any trailing
+     * translation names or extra lines.
+     */
+    private function normalizeReferenceLocalLanguage(
+        string $value
+    ): string {
+        // Trim basic whitespace first
+        $value = trim($value);
+
+        if ($value === '') {
+            return $value;
+        }
+
+        // 1) Remove everything after the first newline
+        //    e.g. "Лука 18:18-30\nБиблия, нов превод ..." -> "Лука 18:18-30"
+        $value = preg_replace('~\R.*$~u', '', $value);
+
+        // 2) Keep up to BookName + chapter[:verse[-verse]]
+        //    e.g. "લૂક 7:36-50 Gujarati: પવિત્ર બાઈબલ"
+        //         -> "લૂક 7:36-50"
+        $value = preg_replace(
+            '~^(.*?\d+(?::\d+(?:-\d+)?)?).*$~u',
+            '$1',
+            $value
+        );
+
+        return trim($value);
     }
 }
