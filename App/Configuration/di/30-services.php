@@ -27,7 +27,7 @@ use App\Factories\YouVersionConnectionFactory;
 // Repositories
 use App\Repositories\LanguageRepository;
 use App\Repositories\BibleBrainBibleRepository;
-use App\Repositories\BiblePassageRepository;
+use App\Repositories\PassageRepository;
 use App\Repositories\NullBiblePassageRepository;
 use App\Repositories\PassageReferenceRepository;
 use App\Repositories\BibleReferenceRepository;
@@ -86,7 +86,7 @@ return [
     // Repositories (no aliasing between these two!)
     LanguageRepository::class => autowire(),
     BibleBrainBibleRepository::class => autowire(),
-    BiblePassageRepository::class => autowire(NullBiblePassageRepository::class),
+    PassageRepository::class => autowire(NullBiblePassageRepository::class),
 
     // Resolve each to itself; BibleReferenceRepository composes PassageReferenceRepository
     PassageReferenceRepository::class => autowire(),

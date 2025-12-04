@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
-interface BiblePassageRepository
+interface PassageRepository
 {
     // Define real methods later
 }

@@ -1,105 +1,120 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers\BiblePassage;
 
-use App\Controllers\BiblePassage\BibleYouVersionPassageController;
-use App\Controllers\BiblePassage\BibleWordPassageController;
 use App\Controllers\BiblePassage\BibleBrain\BibleBrainTextPlainController;
 use App\Controllers\BiblePassage\BibleGateway\BibleGatewayPassageController;
+use App\Controllers\BiblePassage\BibleWordPassageController;
+use App\Controllers\BiblePassage\BibleYouVersionPassageController;
 use App\Models\Bible\BibleModel;
 use App\Models\Bible\PassageModel;
 use App\Models\Bible\PassageReferenceModel;
+use App\Repositories\PassageRepository;
+use App\Repositories\LanguageRepository;
+use App\Services\BiblePassage\ReferenceLocaliserService;
 use App\Services\Database\DatabaseService;
 use App\Models\Language\LanguageModel;
-use App\Repositories\LanguageRepository;
+
 
 class PassageSelectController
 {
-    private $languageRepository;
-    private $databaseService;
-    private $bibleReference;
-    private $bible;
-    private $passageId;
-    public $passageText;
-    public $passageUrl;
-    public $referenceLocalLanguage;
+    private LanguageRepository $languageRepository;
+    private DatabaseService $databaseService;
+    private PassageReferenceModel $bibleReference;
+    private BibleModel $bible;
+    private PassageRepository $passageRepository;
+    private ReferenceLocaliserService $referenceLocaliser;
+
+    private int $passageId;
+    public string $passageText = '';
+    public string $passageUrl = '';
+    public string $referenceLocalLanguage = ' ';
 
     public function __construct(
         DatabaseService $databaseService,
         PassageReferenceModel $bibleReference,
         BibleModel $bible,
-        LanguageRepository $languageRepository
+        LanguageRepository $languageRepository,
+        PassageRepository $passageRepository,
+        ReferenceLocaliserService $referenceLocaliser
     ) {
-        $this->databaseService = $databaseService;
-        $this->bibleReference = $bibleReference;
-        $this->languageRepository = $languageRepository;
-        $this->bible = $bible;
-        $this->checkDatabase();
+        $this->databaseService       = $databaseService;
+        $this->bibleReference        = $bibleReference;
+        $this->bible                 = $bible;
+        $this->languageRepository    = $languageRepository;
+        $this->passageRepository     = $passageRepository;
+        $this->referenceLocaliser    = $referenceLocaliser;
     }
 
-    public function getBible()
+    public function loadPassage(): void
     {
-        return $this->bible;
-    }
+        $bpid = $this->bibleReference->getBpid();
+        $this->passageId = 0; // or whatever you already do
 
-    public function getBibleDirection()
-    {
-        return $this->bible->getDirection();
-    }
+        // 1) Try to load existing passage from DB
+        $existing = $this->passageRepository
+            ->findByBpid($bpid);
 
-    public function getBibleBid()
-    {
-        return $this->bible->getBid();
-    }
-
-    public function getBibleReference()
-    {
-        return $this->bibleReference;
-    }
-
-    private function checkDatabase()
-    {
-        $this->passageId = PassageModel::createBiblePassageId($this->bible->getBid(), $this->bibleReference);
-        $passage = new PassageModel();
-        $passage->findStoredById($this->passageId);
-
-        if ($passage->getReferenceLocalLanguage()) {
-            $this->passageText = $passage->getPassageText();
-            $this->passageUrl = $passage->getPassageUrl();
-            $this->referenceLocalLanguage = $passage->getReferenceLocalLanguage();
-        } else {
-            $this->retrieveExternalPassage();
+        if ($existing instanceof PassageModel
+            && $existing->getPassageText() !== '') {
+            // We already have a stored, complete passage.
+            $this->hydrateFromModel($existing);
+            return;
         }
 
-        $this->applyTextDirection();
+        // 2) If not in DB, fetch from the appropriate external source
+        $passage = $this->fetchExternalPassage();
+
+        // Ensure bpid is set on the model
+        $passage->setBpid($bpid);
+
+        // 3) Apply numeral localisation
+        $hl = $this->bible->getLanguageCodeHL();
+        if ($hl !== '') {
+            $this->referenceLocaliser->applyNumeralSet($passage, $hl);
+        }
+
+        // 4) Save to DB
+        $this->passageRepository->savePassageRecord($passage);
+
+        // 5) Expose values for caller / view
+        $this->hydrateFromModel($passage);
     }
 
-    private function retrieveExternalPassage()
+
+    private function fetchExternalPassage()
     {
         switch ($this->bible->getSource()) {
             case 'bible_brain':
-                $passage = new BibleBrainTextPlainController($this->bibleReference, $this->bible);
-                break;
+                $controller = new BibleBrainTextPlainController($this->bibleReference, $this->bible);
+                 return $controller->fetchPassage();
+
             case 'bible_gateway':
-                $passage = new BibleGatewayPassageController($this->bibleReference, $this->bible);
-                break;
+                $controller = new BibleGatewayPassageController($this->bibleReference, $this->bible);
+                 return $controller->fetchPassage();
+
             case 'youversion':
-                $passage = new BibleYouVersionPassageController($this->bibleReference, $this->bible);
-                break;
+                $controller = new BibleYouVersionPassageController($this->bibleReference, $this->bible);
+                 return $controller->fetchPassage();
+
             case 'word':
-                $passage = new BibleWordPassageController($this->bibleReference, $this->bible);
-                break;
+                $controller = new BibleWordPassageController($this->bibleReference, $this->bible);
+                 return $controller->fetchPassage();
+
             default:
-                $this->setDefaultPassage();
-                return;
+                return new PassageModel();
         }
-
-        $this->passageText = $passage->getPassageText();
-        $this->passageUrl = $passage->getPassageUrl();
-        $this->referenceLocalLanguage = $passage->getReferenceLocalLanguage();
-
-        PassageModel::savePassageRecord($this->passageId, $this->referenceLocalLanguage, $this->passageText, $this->passageUrl);
     }
+
+    private function hydrateFromModel(PassageModel $passage): void
+    {
+        $this->passageText            = $passage->getPassageText();
+        $this->passageUrl             = $passage->getPassageUrl();
+        $this->referenceLocalLanguage = $passage->getReferenceLocalLanguage();
+    }
+
 
     private function setDefaultPassage()
     {
@@ -139,4 +154,6 @@ class PassageSelectController
         ];
         $this->databaseService->executeQuery($query, $params);
     }
+
+   
 }

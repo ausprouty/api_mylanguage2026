@@ -7,58 +7,39 @@ namespace App\Controllers\BiblePassage\BibleGateway;
 use App\Models\Bible\BibleModel;
 use App\Models\Bible\PassageModel;
 use App\Models\Bible\PassageReferenceModel;
-use App\Repositories\BiblePassageRepository;
-use App\Services\BiblePassage\ReferenceLocaliserService;
+use App\Repositories\PassageRepository;
 use App\Services\LoggerService;
 use App\Services\Web\BibleGatewayConnectionService;
 
-/**
- * Fetches Bible passages from BibleGateway and saves them
- * to the database, applying numeral localisation where needed.
- */
 class BibleGatewayPassageController
 {
-    private BiblePassageRepository $biblePassageRepository;
-    private PassageReferenceModel $bibleReference;
-    private BibleModel $bible;
-    private ReferenceLocaliserService $referenceLocaliser;
-
     public function __construct(
-        PassageReferenceModel $bibleReference,
-        BibleModel $bible,
-        BiblePassageRepository $biblePassageRepository,
-        ReferenceLocaliserService $referenceLocaliser
+        private PassageReferenceModel $bibleReference,
+        private BibleModel $bible
     ) {
-        $this->biblePassageRepository = $biblePassageRepository;
-        $this->bibleReference         = $bibleReference;
-        $this->bible                  = $bible;
-        $this->referenceLocaliser     = $referenceLocaliser;
     }
-
-
     /**
-     * Fetches a Bible passage from BibleGateway and saves it.
+     * Fetches passage text + reference from BibleGateway
+     * and returns a hydrated PassageModel.
+     *
+     * No saving. No numeral localisation.
      */
-    public function fetchAndSavePassage(): PassageModel
+    public function fetchPassage(): PassageModel
     {
         $t0 = microtime(true);
 
-        $reference = $this->bibleReference->getEntry();
-        $version = $this->bible->getExternalId();
+        $reference    = $this->bibleReference->getEntry();
+        $version      = $this->bible->getExternalId();
+        $passageUrl   = '/passage/?search='
+                        . rawurlencode($reference)
+                        . '&version='
+                        . rawurlencode($version);
 
-        $passageUrl = '/passage/?search='
-            . rawurlencode($reference)
-            . '&version='
-            . rawurlencode($version);
+        LoggerService::logInfo('BGPC:fetch:start', $passageUrl);
 
-        LoggerService::logInfo(
-            'BGPC:fetch:start',
-            $passageUrl
-        );
-
-        $conn = new BibleGatewayConnectionService($passageUrl);
-        $body = (string) $conn->getBody();
-        $code = $conn->getHttpCode();
+        $conn  = new BibleGatewayConnectionService($passageUrl);
+        $body  = (string) $conn->getBody();
+        $code  = $conn->getHttpCode();
         $ctype = $conn->getContentType();
 
         LoggerService::logInfo(
@@ -66,32 +47,36 @@ class BibleGatewayPassageController
             "code={$code} bytes=" . strlen($body) . " ctype={$ctype}"
         );
 
-        $passageModel = new PassageModel();
+        $passage = new PassageModel();
+        $passage->setBpid($this->bibleReference->getBpid());
+        $passage->setPassageUrl($passageUrl);
 
-        if ($body !== '') {
-            $passageModel->setBpid($this->bibleReference->getBpid());
-
-            $cleanHtml = $this->formatExternal($body);
-            $passageModel->setPassageText($cleanHtml);
-        
-            $localRef = $this->getReferenceLocalLanguage($body);
-            $passageModel->setReferenceLocalLanguage($localRef);
-           
-            $passageModel->setPassageUrl($passageUrl);
-
-            // NEW: Localise digits using Bible language
-            $hl = $this->bible->getLanguageCodeHL();
-            $this->referenceLocaliser->applyNumeralSet($passageModel, $hl);
-
-            $this->biblePassageRepository->savePassageRecord($passageModel);
-        } else {
+        if ($body === '') {
             LoggerService::logError(
                 'BGPC:empty_body',
                 $passageUrl
             );
+            return $passage;
         }
 
-        return $passageModel;
+        // Extract passage text and reference (Latin digits OK)
+        $t1       = microtime(true);
+        $cleanTxt = $this->formatExternal($body);
+        $t2       = microtime(true);
+        $localRef = $this->getReferenceLocalLanguage($body);
+        $t3       = microtime(true);
+
+        LoggerService::logInfo(
+            'BGPC:timings',
+            'format_ms=' . (int) (($t2 - $t1) * 1000)
+            . ' ref_ms=' . (int) (($t3 - $t2) * 1000)
+            . ' total_ms=' . (int) (($t3 - $t0) * 1000)
+        );
+
+        $passage->setPassageText($cleanTxt);
+        $passage->setReferenceLocalLanguage($localRef);
+
+        return $passage;
     }
 
     /**

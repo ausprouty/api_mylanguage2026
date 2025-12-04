@@ -34,12 +34,12 @@
     "App\\Controllers\\BiblePassage\\BibleGateway\\BibleGatewayPassageController": [
         "App\\Models\\Bible\\PassageReferenceModel",
         "App\\Models\\Bible\\BibleModel",
-        "App\\Repositories\\BiblePassageRepository"
+        "App\\Repositories\\PassageRepository"
     ],
     "App\\Controllers\\BiblePassage\\BibleWordPassageController": [
         "App\\Models\\Bible\\PassageReferenceModel",
         "App\\Models\\Bible\\BibleModel",
-        "App\\Repositories\\BiblePassageRepository"
+        "App\\Repositories\\PassageRepository"
     ],
     "App\\Controllers\\BiblePassage\\BibleYouVersionPassageController": [
         "App\\Services\\Bible\\YouVersionPassageService"

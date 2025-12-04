@@ -41,7 +41,10 @@ class PassageRepository extends BaseRepository
         $output =  (bool) $results->fetch(PDO::FETCH_OBJ);
         return $output;
     }
-
+    public function findByBpid(string $bpid): ?PassageModel
+    {
+        return $this->findStoredById($bpid);
+    }
     /**
      * Finds a stored Bible passage by its ID.
      *
@@ -125,7 +128,7 @@ class PassageRepository extends BaseRepository
             ':referenceLocalLanguage' => $biblePassage->getReferenceLocalLanguage(),
             ':passageText' => $biblePassage->getPassageText(),
             ':passageUrl' => $biblePassage->getPassageUrl(),
-            ':bpid' => $biblePassage->bpid
+            ':bpid' => $biblePassage->getBpid()
         ];
 
         $this->databaseService->executeQuery($query, $params);

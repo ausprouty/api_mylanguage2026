@@ -2,62 +2,106 @@
 
 namespace App\Controllers\BiblePassage\BibleBrain;
 
-use App\Services\Bible\PassageFormatterService;
-use App\Services\Web\BibleBrainConnectionService;
-use App\Repositories\BibleReferenceRepository;
 use App\Models\Bible\BibleModel;
+use App\Models\Bible\PassageModel;
 use App\Models\Bible\PassageReferenceModel;
+use App\Repositories\BibleReferenceRepository;
+use App\Services\Bible\PassageFormatterService;
+use App\Services\LoggerService;
+use App\Services\Web\BibleBrainConnectionService;
 
 class BibleBrainTextPlainController
 {
-    private $formatter;
-    private $bibleReferenceRepository;
-    private $response;
-    private $referenceLocalLanguage;
-    private $passageText;
-
-    public function __construct(PassageFormatterService $formatter, BibleReferenceRepository $bibleReferenceRepository)
-    {
-        $this->formatter = $formatter;
-        $this->bibleReferenceRepository = $bibleReferenceRepository;
+    public function __construct(
+        private BibleModel $bible,
+        private PassageReferenceModel $bibleReference,
+        private PassageFormatterService $formatter,
+        private BibleReferenceRepository $bibleReferenceRepository
+    ) {
     }
 
-    public function fetchPassageData(
-        BibleModel $bible,
-        PassageReferenceModel $bibleReference
-    ) {
+    /**
+     * Fetch passage from BibleBrain (text_plain), format it,
+     * and return a hydrated PassageModel.
+     *
+     * No saving. No numeral localisation.
+     */
+    public function fetchPassage(): PassageModel
+    {
+        $passage = new PassageModel();
+        $passage->setBpid($this->bibleReference->getBpid());
+
         $url = sprintf(
             '/bibles/filesets/%s/%s/%s/?verse_start=%s&verse_end=%s',
-            $bible->getExternalId(),
-            $bibleReference->getBookId(),
-            $bibleReference->getChapterStart(),
-            $bibleReference->getVerseStart(),
-            $bibleReference->getVerseEnd()
+            $this->bible->getExternalId(),
+            $this->bibleReference->getBookId(),
+            $this->bibleReference->getChapterStart(),
+            $this->bibleReference->getVerseStart(),
+            $this->bibleReference->getVerseEnd()
         );
-      
-        $this->response = (new BibleBrainConnectionService($url))->response;
-       
-        $this->passageText = $this->formatter->formatPassageText($this->response->data ?? []);
+
+        $conn     = new BibleBrainConnectionService($url);
+        $response = $conn->response ?? null;
+
+        if (!$response || empty($response->data)) {
+            LoggerService::logError(
+                'BBTPC:empty_response',
+                $url
+            );
+            return $passage;
+        }
+
+        $html = $this->formatter->formatPassageText($response->data ?? []);
+        if ($html === null || $html === '') {
+            LoggerService::logError(
+                'BBTPC:no_text',
+                $url
+            );
+            return $passage;
+        }
+
+        $passage->setPassageText($html);
+
+        $localRef = $this->buildReferenceLocalLanguage($response);
+        $passage->setReferenceLocalLanguage($localRef);
+
+        $passage->setPassageUrl($url);
+
+        return $passage;
     }
 
-    public function getPassageText()
+    /**
+     * Build the local-language reference string like:
+     *   "يوحنا 3:16-18"
+     * using book_name_alt when available.
+     */
+    private function buildReferenceLocalLanguage(object $response): string
     {
-        return $this->passageText;
-    }
+        $bookId    = $this->bibleReference->getBookId();
+        $chapter   = $this->bibleReference->getChapterStart();
+        $verseFrom = $this->bibleReference->getVerseStart();
+        $verseTo   = $this->bibleReference->getVerseEnd();
 
-    public function setReferenceLocalLanguage($bookId, $chapter, $verseStart, $verseEnd)
-    {
-        $bookName = $this->getBookNameLocalLanguage($bookId);
-        $this->referenceLocalLanguage = "{$bookName} {$chapter}:{$verseStart}-{$verseEnd}";
-    }
+        $bookName = null;
 
-    public function getReferenceLocalLanguage()
-    {
-        return $this->referenceLocalLanguage;
-    }
+        if (isset($response->data[0]->book_name_alt)
+            && $response->data[0]->book_name_alt !== ''
+        ) {
+            $bookName = $response->data[0]->book_name_alt;
+        } else {
+            $bookName = $this->bibleReferenceRepository->getBookName($bookId);
+        }
 
-    private function getBookNameLocalLanguage($bookId)
-    {
-        return $this->response->data[0]->book_name_alt ?? $this->bibleReferenceRepository->getBookName($bookId);
+        if ($verseFrom === $verseTo) {
+            return sprintf('%s %s:%s', $bookName, $chapter, $verseFrom);
+        }
+
+        return sprintf(
+            '%s %s:%s-%s',
+            $bookName,
+            $chapter,
+            $verseFrom,
+            $verseTo
+        );
     }
 }
