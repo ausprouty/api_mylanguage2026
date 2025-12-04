@@ -29,7 +29,8 @@ SELECT
     hl.languageCodeGoogle,
     hl.languageCodeJF,
     hl.languageCodeIso,
-    hl.direction
+    hl.direction,
+    hl.numeralSet
 FROM dbs_languages AS dl
 JOIN hl_languages AS hl
   ON hl.languageCodeHL = dl.languageCodeHL
@@ -81,6 +82,7 @@ foreach ($rows as $row) {
         'languageCodeGoogle' => $row['languageCodeGoogle'],
         'languageCodeJF'     => $row['languageCodeJF'],
         'textDirection'      => $textDirection ,
+        'numeralSet'         => $row['numeralSet']
     ];
 
     $id += 5;

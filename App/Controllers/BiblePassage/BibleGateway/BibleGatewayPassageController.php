@@ -1,33 +1,40 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers\BiblePassage\BibleGateway;
 
+use App\Models\Bible\BibleModel;
 use App\Models\Bible\PassageModel;
 use App\Models\Bible\PassageReferenceModel;
-use App\Models\Bible\BibleModel;
 use App\Repositories\BiblePassageRepository;
-use App\Services\Web\BibleGatewayConnectionService;
+use App\Services\BiblePassage\ReferenceLocaliserService;
 use App\Services\LoggerService;
+use App\Services\Web\BibleGatewayConnectionService;
 
 /**
- * Controller to fetch Bible passages from BibleGateway
- * and save them to the database.
+ * Fetches Bible passages from BibleGateway and saves them
+ * to the database, applying numeral localisation where needed.
  */
 class BibleGatewayPassageController
 {
-    private $biblePassageRepository;
-    private $bibleReference;
-    private $bible;
+    private BiblePassageRepository $biblePassageRepository;
+    private PassageReferenceModel $bibleReference;
+    private BibleModel $bible;
+    private ReferenceLocaliserService $referenceLocaliser;
 
     public function __construct(
         PassageReferenceModel $bibleReference,
         BibleModel $bible,
-        BiblePassageRepository $biblePassageRepository
+        BiblePassageRepository $biblePassageRepository,
+        ReferenceLocaliserService $referenceLocaliser
     ) {
         $this->biblePassageRepository = $biblePassageRepository;
-        $this->bibleReference = $bibleReference;
-        $this->bible = $bible;
+        $this->bibleReference         = $bibleReference;
+        $this->bible                  = $bible;
+        $this->referenceLocaliser     = $referenceLocaliser;
     }
+
 
     /**
      * Fetches a Bible passage from BibleGateway and saves it.
@@ -62,25 +69,19 @@ class BibleGatewayPassageController
         $passageModel = new PassageModel();
 
         if ($body !== '') {
-            $t1 = microtime(true);
+            $passageModel->setBpid($this->bibleReference->getBpid());
+
             $cleanHtml = $this->formatExternal($body);
-            $t2 = microtime(true);
-            $localRef = $this->getReferenceLocalLanguage($body);
-            $t3 = microtime(true);
-
-            LoggerService::logInfo(
-                'BGPC:timings',
-                'format_ms='
-                . (int) (($t2 - $t1) * 1000)
-                . ' ref_ms='
-                . (int) (($t3 - $t2) * 1000)
-                . ' total_ms='
-                . (int) (($t3 - $t0) * 1000)
-            );
-
             $passageModel->setPassageText($cleanHtml);
+        
+            $localRef = $this->getReferenceLocalLanguage($body);
             $passageModel->setReferenceLocalLanguage($localRef);
+           
             $passageModel->setPassageUrl($passageUrl);
+
+            // NEW: Localise digits using Bible language
+            $hl = $this->bible->getLanguageCodeHL();
+            $this->referenceLocaliser->applyNumeralSet($passageModel, $hl);
 
             $this->biblePassageRepository->savePassageRecord($passageModel);
         } else {
