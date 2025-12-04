@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Service\Numerals;
+namespace App\Services\Numerals;
 
 use App\Repository\NumeralSystemRepository;
 
