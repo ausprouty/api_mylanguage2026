@@ -16,7 +16,6 @@ class Config
    public static function initialize(): void
     {
         if (self::$config !== null) {
-            LoggerService::logInfo('Config-19', 'already initialized');
             return; // already initialized
            
         }
@@ -111,14 +110,19 @@ class Config
         return $value;
     }
     public static function getDir($key, $default = null)
-    {
+{
         if (!is_string($key) || trim($key) === '') {
             throw new \InvalidArgumentException("Invalid key provided for Config::getDir()");
         }
 
         $path = self::get("paths.$key", $default);
-        if (!$path) {
-            if ($default !== null) return self::get('base_dir') . $default;
+
+        if ($path === null || $path === '') {
+            if ($default !== null && $default !== '') {
+                $base = rtrim(self::get('base_dir'), "/\\");
+                return $base . '/' . ltrim($default, "/\\");
+            }
+
             throw new \InvalidArgumentException("Directory path for '$key' not found.");
         }
 
@@ -177,6 +181,24 @@ class Config
         $parsed = filter_var($s, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
         return $parsed ?? $default;
     }    
+    public static function getInt(string $key, int $default = 0): int
+    {
+        try {
+            $val = self::get($key, $default);
+        } catch (\Throwable $e) {
+            return $default;
+        }
+
+        if (is_int($val)) {
+            return $val;
+        }
+
+        if (is_numeric($val)) {
+            return (int) $val;
+        }
+
+        return $default;
+    }
 
 
         /** Join path segments safely, cross-platform. */

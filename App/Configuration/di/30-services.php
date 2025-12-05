@@ -90,7 +90,7 @@ return [
     BibleBrainBibleRepository::class => autowire(),
 
      // Passage repository contract → concrete
-+    PassageRepositoryInterface::class => autowire(PassageRepository::class),
+    PassageRepositoryInterface::class => autowire(PassageRepository::class),
 
     // Resolve each to itself; BibleReferenceRepository composes PassageReferenceRepository
     PassageReferenceRepository::class => autowire(),
