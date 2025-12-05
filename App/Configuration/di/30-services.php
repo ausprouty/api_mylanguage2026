@@ -25,10 +25,11 @@ use App\Factories\BibleWordConnectionFactory;
 use App\Factories\YouVersionConnectionFactory;
 
 // Repositories
-use App\Repositories\LanguageRepository;
 use App\Repositories\BibleBrainBibleRepository;
+use App\Repositories\LanguageRepository;
+use App\Repositories\NullPassageRepository;
 use App\Repositories\PassageRepository;
-use App\Repositories\NullBiblePassageRepository;
+use App\Repositories\PassageRepositoryInterface;
 use App\Repositories\PassageReferenceRepository;
 use App\Repositories\BibleReferenceRepository;
 
@@ -36,10 +37,11 @@ use App\Repositories\BibleReferenceRepository;
 use App\Models\Bible\PassageReferenceModel;
 
 // Services (canonical)
-use App\Services\BiblePassage\PassageFormatterService;
+
 use App\Services\BiblePassage\BibleBrainPassageService;
 use App\Services\BiblePassage\BibleGatewayPassageService;
 use App\Services\BiblePassage\BibleWordPassageService;
+use App\Services\BiblePassage\PassageFormatterService;
 use App\Services\BiblePassage\YouVersionPassageService;
 use App\Services\BibleStudy\FsTemplateAssemblyService as TemplateAssemblyConcrete;
 use App\Services\Database\DatabaseService;
@@ -86,7 +88,9 @@ return [
     // Repositories (no aliasing between these two!)
     LanguageRepository::class => autowire(),
     BibleBrainBibleRepository::class => autowire(),
-    PassageRepository::class => autowire(NullBiblePassageRepository::class),
+
+     // Passage repository contract → concrete
++    PassageRepositoryInterface::class => autowire(PassageRepository::class),
 
     // Resolve each to itself; BibleReferenceRepository composes PassageReferenceRepository
     PassageReferenceRepository::class => autowire(),

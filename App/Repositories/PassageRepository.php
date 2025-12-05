@@ -11,6 +11,7 @@ use PDO;
  * Repository for handling Bible passage records in the database.
  */
 class PassageRepository extends BaseRepository
+                        implements PassageRepositoryInterface
 {
     /**
      * @var DatabaseService The service for interacting with the database.
