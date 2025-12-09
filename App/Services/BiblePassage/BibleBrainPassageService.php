@@ -106,13 +106,14 @@ class BibleBrainPassageService extends AbstractBiblePassageService
     {
         $first = $this->webpage[0] ?? null;
         $book  = is_array($first) ? ($first['book_name_alt'] ?? null) : ($first->book_name_alt ?? null);
+        $verses =  $this->passageReference->getChapterStart().':'
+                . $this->passageReference->getVerseStart().'-'
+                . $this->passageReference->getVerseEnd();
 
         if ($book) {
-            return $book.' '
-                .$this->passageReference->getChapterStart().':'
-                .$this->passageReference->getVerseStart().'-'
-                .$this->passageReference->getVerseEnd();
+            return $book.' '. $verses;
+               
         }
-        return 'Unknown Reference';
+        return $verses;
     }
 }
