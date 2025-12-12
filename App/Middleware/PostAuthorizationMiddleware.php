@@ -4,7 +4,7 @@ namespace App\Middleware;
 
 use App\Services\Security\SanitizeInputService;
 use App\Controllers\Data\PostInputController;
-use App\Services\Security\AdminAuthorizationService;
+use App\Services\Security\PostAuthorizationService;
 
 class PostAuthorizationMiddleware
 {
@@ -29,7 +29,7 @@ class PostAuthorizationMiddleware
         }
 
         // 1) Authorization check first (optional but efficient)
-        if (!AdminAuthorizationService::checkAuthorizationHeader()) {
+        if (!PostAuthorizationService::checkAuthorizationHeader()) {
             http_response_code(401);
             header('Content-Type: application/json; charset=utf-8');
             // CORS headers are already set by CORSMiddleware earlier

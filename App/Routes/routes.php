@@ -42,7 +42,42 @@ return function (RouteCollector $r) {
         });
     });
 
-    // version 2
+    // version 2 b
+
+     $r->addGroup( $basePath . '/api/v2/available',
+        function (RouteCollector $g) use ($container) {
+            $g->addRoute('POST', '/bibles', function ($args) use ($container) {
+                $controller = $container->get(
+                    \App\Controllers\Bible\BiblesAvailableController::class
+                );
+
+                return $controller($args);
+            });
+            $g->addRoute('POST', '/languages', function ($args) use ($container) {
+                $controller = $container->get(
+                    \App\Controllers\Language\LanguagesAvailableController::class
+                );
+
+                return $controller($args);
+            });
+        }
+    );
+    // version 2  Bible
+
+    $r->addGroup( $basePath . '/api/v2/bible',
+      function (RouteCollector $g) use ($container) {
+            $g->addRoute('POST', '/passage', function ($args) use ($container) {
+                $controller = $container->get(
+                    \App\Controllers\BiblePassage\PassageRetrieverController::class
+                );
+
+                return $controller($args);
+            });
+      }
+
+    );
+
+    // version 2 Translate
 
     $r->addGroup($basePath . '/api/v2/translate', function (RouteCollector $g)
     use ($container) {
