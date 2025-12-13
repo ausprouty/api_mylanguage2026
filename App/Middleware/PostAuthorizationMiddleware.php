@@ -11,48 +11,48 @@ use App\Services\LoggerService;
 
 class PostAuthorizationMiddleware
 {
-    /**
-     * Process POST-like requests. Return sanitized data array on success,
-     * or a string (JSON error) on failure. For non-POST methods, [].
-     *
-     * @return array|string
-     */
-    public static function getDataSet()
+    public static function isPostLike(): bool
     {
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+        if (strcasecmp($method, 'OPTIONS') === 0) return false;
+        return in_array(strtoupper($method), ['POST'], true);
+    }
 
-        // Never run on preflight
-        if (strcasecmp($method, 'OPTIONS') === 0) {
-            return [];
-        }
-
-        // Only gate POST (add PUT/PATCH if needed)
-        if (!in_array(strtoupper($method), ['POST'], true)) {
-            return [];
-        }
-
-        // 1) Authorization check first
+    /**
+     * @throws \RuntimeException when unauthorized
+     */
+    public static function authorizeOrThrow(): void
+    {
         if (!PostAuthorizationService::checkAuthorizationHeader()) {
-            http_response_code(401);
-            header('Content-Type: application/json; charset=utf-8');
+            throw new \RuntimeException(
+                'not authorized based on authorization header'
+            );
+        }
+    }
 
-            // CORS headers already set earlier
-            return json_encode([
-                'error' =>
-                    'not authorized based on authorization header',
-            ]);
+    /**
+     * Always returns an array dataset for POST; otherwise [].
+     *
+     * @return array
+     * @throws \RuntimeException when unauthorized
+     */
+    public static function getDataSet(): array
+    {
+        if (!self::isPostLike()) {
+            return [];
         }
 
-        // 2) Read + sanitise body once
-        $sanitizeInputService = new SanitizeInputService();
-        $postInputService     = new PostInputService(
-            $sanitizeInputService
-        );
+        self::authorizeOrThrow();
 
+        $sanitizeInputService = new SanitizeInputService();
+        $postInputService = new PostInputService($sanitizeInputService);
         $dataSet = $postInputService->getDataSet();
 
-        LoggerService::logInfo('PostAuthorizationMiddleware', ['dataset' => $dataSet]);
+        LoggerService::logInfo(
+            'PostAuthorizationMiddleware.dataset',
+            ['dataset' => $dataSet]
+        );
 
-        return $dataSet;
+        return is_array($dataSet) ? $dataSet : [];
     }
 }
