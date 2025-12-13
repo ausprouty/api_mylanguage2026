@@ -97,7 +97,7 @@ final class BiblePassageService
         $this->bpid = $this->bibleModel->getBid() . '-' . $this->passageReferenceModel->getPassageID();
 
         // Check if the passage is in the database or fetch it externally.
-        if ($this->inDatabase()) {
+        if ($this->inDatabase($this->bpid)) {
             $passageModel = $this->retrieveStoredData($this->bpid);
         } else {
             $passageModel = $this->retrieveExternalPassage($this->passageReferenceModel);

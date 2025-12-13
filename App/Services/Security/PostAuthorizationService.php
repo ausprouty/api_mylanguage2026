@@ -48,7 +48,7 @@ class PostAuthorizationService
                 }
             }
         }
-
+/* 
         LoggerService::LogInfo('PostAuthorizationService', [
             'has_HTTP_AUTHORIZATION' => isset($_SERVER['HTTP_AUTHORIZATION']) ? 1 : 0,
             'has_REDIRECT_HTTP_AUTHORIZATION' =>
@@ -56,7 +56,7 @@ class PostAuthorizationService
             'header_len' => strlen($header),
         ]);
  
-
+*/
 
         if ($header === '') {
             return false;

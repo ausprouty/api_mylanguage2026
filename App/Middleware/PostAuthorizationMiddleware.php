@@ -7,6 +7,7 @@ namespace App\Middleware;
 use App\Services\Security\SanitizeInputService;
 use App\Services\Data\PostInputService;
 use App\Services\Security\PostAuthorizationService;
+use App\Services\LoggerService;
 
 class PostAuthorizationMiddleware
 {
@@ -50,7 +51,7 @@ class PostAuthorizationMiddleware
 
         $dataSet = $postInputService->getDataSet();
 
-        writeLog('PostAuthorizationMiddleware', $dataSet);
+        LoggerService::logInfo('PostAuthorizationMiddleware', ['dataset' => $dataSet]);
 
         return $dataSet;
     }

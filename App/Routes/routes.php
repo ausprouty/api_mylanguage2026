@@ -107,7 +107,7 @@ return function (RouteCollector $r) {
 
     $r->addGroup( $basePath . '/api/v2/bible',
       function (RouteCollector $g) use ($container) {
-           $g->addRoute('POST', '/bible/passage', postHandler(
+           $g->addRoute('POST', '/passage', postHandler(
                 \App\Controllers\BiblePassage\PassageRetrieverController::class,
                 $container
             ));

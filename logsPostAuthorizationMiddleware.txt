@@ -1,7 +1,7 @@
 array(5) {
   ["bid"]=>
   string(4) "1257"
-  ["reference"]=>
+  ["entry"]=>
   string(12) "John 3:16-18"
   ["languageCodeIso"]=>
   string(3) "eng"

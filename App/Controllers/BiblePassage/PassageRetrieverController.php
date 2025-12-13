@@ -81,7 +81,7 @@ class PassageRetrieverController
             }
 
             $languageCodeHL = (string) $bible->getLanguageCodeHL();
-/*
+
             // 2) Build a PassageReferenceModel from the entry + language
             $reference = $this->referenceFactory
                 ->createFromEntry($entry, $languageCodeHL);
@@ -96,7 +96,7 @@ class PassageRetrieverController
             $response['ref']  =
                 (string) $passageModel->getReferenceLocalLanguage();
             // error stays ""
-*/ 
+ 
             return $response;
         } catch (\Throwable $e) {
             // Log full details for you
