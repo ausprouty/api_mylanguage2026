@@ -68,10 +68,9 @@ function applyMiddleware(array $middlewares, $request)
     return $next($request);
 }
 
-// ========= Post-authorization (if your app expects it) =========
-$postData = PostAuthorizationMiddleware::getDataSet();
 
-// ========= Route dispatching =========
+/* ========= Route dispatching =========
+I am not sure I want these options
 switch ($mode) {
     case 'tests':
         require_once __DIR__ . '/App/Routes/TestLoader.php';
@@ -83,5 +82,6 @@ switch ($mode) {
         // fall through to router
         break;
 }
+ */
 
 require_once __DIR__ . '/App/Routes/router.php';

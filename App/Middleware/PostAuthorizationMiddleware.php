@@ -1,16 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Middleware;
 
 use App\Services\Security\SanitizeInputService;
-use App\Controllers\Data\PostInputController;
+use App\Services\Data\PostInputService;
 use App\Services\Security\PostAuthorizationService;
 
 class PostAuthorizationMiddleware
 {
     /**
      * Process POST-like requests. Return sanitized data array on success,
-     * or a string on failure. For non-POST methods, returns [].
+     * or a string (JSON error) on failure. For non-POST methods, [].
      *
      * @return array|string
      */
@@ -28,19 +30,26 @@ class PostAuthorizationMiddleware
             return [];
         }
 
-        // 1) Authorization check first (optional but efficient)
+        // 1) Authorization check first
         if (!PostAuthorizationService::checkAuthorizationHeader()) {
             http_response_code(401);
             header('Content-Type: application/json; charset=utf-8');
-            // CORS headers are already set by CORSMiddleware earlier
-            return json_encode(['error' => 'not authorized based on authorization header']);
+
+            // CORS headers already set earlier
+            return json_encode([
+                'error' =>
+                    'not authorized based on authorization header',
+            ]);
         }
 
-        // 2) Sanitize once, log once
+        // 2) Read + sanitise body once
         $sanitizeInputService = new SanitizeInputService();
-        $postInputController  = new PostInputController($sanitizeInputService);
+        $postInputService     = new PostInputService(
+            $sanitizeInputService
+        );
 
-        $dataSet = $postInputController->getDataSet(); // single read/parse
+        $dataSet = $postInputService->getDataSet();
+
         writeLog('PostAuthorizationMiddleware', $dataSet);
 
         return $dataSet;

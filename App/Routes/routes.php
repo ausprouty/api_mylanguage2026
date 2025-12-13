@@ -4,10 +4,55 @@ use FastRoute\RouteCollector;
 use App\Configuration\Config;
 use App\Responses\JsonResponse;
 use App\Services\LoggerService;
+use App\Middleware\PostAuthorizationMiddleware;
+use Psr\Container\ContainerInterface;
 
+/**
+ * Wrap a controller class in a POST-aware handler.
+ *
+ * - Reads + authorizes + sanitizes body via PostAuthorizationMiddleware.
+ * - Receives route parameters from FastRoute.
+ * - Passes a single $args array to the controller:
+ *     $args['route'] = route params from URL
+ *     $args['body']  = sanitized POST body
+ */
+function postHandler(string $controllerClass, ContainerInterface $container): callable
+{
+    return function (array $routeParams) use ($controllerClass, $container) {
+        // 1) Authorize + get body (JSON or form)
+        $dataSet = PostAuthorizationMiddleware::getDataSet();
+
+        if (!is_array($dataSet)) {
+            // Authorization failed or invalid body.
+            // PostAuthorizationMiddleware already set status + headers.
+            echo $dataSet;
+            return null;
+        }
+
+        // 2) Build the args structure we pass to the controller
+        $args = [
+            'route' => $routeParams, // ← THIS is where route params go
+            'body'  => $dataSet,     // ← Sanitized POST data
+        ];
+
+        // 3) Resolve controller from container and invoke
+        $controller = $container->get($controllerClass);
+
+        return $controller($args);
+    };
+}
+
+
+
+/**
+ * @param RouteCollector $r
+ * @param array|string   $postData  Sanitized POST data from
+ *                                  PostAuthorizationMiddleware.
+ */
 
 
 return function (RouteCollector $r) {
+
     // Normalize basePath to: ""  or "/something" (no trailing slash)
     $rawBase = (string) (Config::get('base_path') ?? '');
     $basePath = rtrim('/' . ltrim($rawBase, '/'), '/');
@@ -42,37 +87,30 @@ return function (RouteCollector $r) {
         });
     });
 
-    // version 2 b
+    // version 2  Available
 
      $r->addGroup( $basePath . '/api/v2/available',
         function (RouteCollector $g) use ($container) {
-            $g->addRoute('POST', '/bibles', function ($args) use ($container) {
-                $controller = $container->get(
-                    \App\Controllers\Bible\BiblesAvailableController::class
-                );
+            $g->addRoute('POST', '/bibles', postHandler(
+                \App\Controllers\Bibles\BiblesAvailableController::class,
+                $container
+            ));
 
-                return $controller($args);
-            });
-            $g->addRoute('POST', '/languages', function ($args) use ($container) {
-                $controller = $container->get(
-                    \App\Controllers\Language\LanguagesAvailableController::class
-                );
+            $g->addRoute('POST', '/languages', postHandler(
+                \App\Controllers\Language\LanguagesAvailableController::class,
+                $container
+            ));
 
-                return $controller($args);
-            });
         }
     );
     // version 2  Bible
 
     $r->addGroup( $basePath . '/api/v2/bible',
       function (RouteCollector $g) use ($container) {
-            $g->addRoute('POST', '/passage', function ($args) use ($container) {
-                $controller = $container->get(
-                    \App\Controllers\BiblePassage\PassageRetrieverController::class
-                );
-
-                return $controller($args);
-            });
+           $g->addRoute('POST', '/bible/passage', postHandler(
+                \App\Controllers\BiblePassage\PassageRetrieverController::class,
+                $container
+            ));
       }
 
     );

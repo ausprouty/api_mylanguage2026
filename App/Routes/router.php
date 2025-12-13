@@ -7,11 +7,12 @@ use App\Services\LoggerService;
 // Load routes (returns a closure that accepts RouteCollector)
 $routes = require __DIR__ . '/routes.php';
 
-// Build dispatcher
-$dispatcher = FastRoute\simpleDispatcher(function (RouteCollector $r) use ($routes) {
-    $routes($r);
-});
-
+$dispatcher = FastRoute\simpleDispatcher(
+    function (RouteCollector $r) use ($routes) {
+        // routes.php returns a closure: function (RouteCollector $r) { ... }
+        $routes($r);
+    }
+);
 // Extract method + path
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $uri    = $_SERVER['REQUEST_URI'] ?? '/';
