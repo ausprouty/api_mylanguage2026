@@ -1,8 +1,10 @@
 <?php
 
-namespace App\Controllers;
+namespace App\Controllers\Language;
 
 use App\Services\Languages\LanguagesAvailableService;
+use App\Services\LoggerService;
+
 
 /**
  * LanguagesAvailableController
@@ -77,35 +79,67 @@ use App\Services\Languages\LanguagesAvailableService;
  *     }
  *   }
  */
+
+
+
+/**
+     * Handle the POST request.
+     *
+     * @param array<string,mixed> $args
+     *        Router arguments. We expect $args['body'] to contain
+     *        the parsed and sanitised request payload.
+     *
+     * @return array{
+     *   error: string,
+     *   languages: array<mixed>,
+     *   meta: array<mixed>|null
+     * }
+     */
 class LanguagesAvailableController
 {
     /** @var LanguagesAvailableService */
-    private $service;
 
-    public function __construct(LanguagesAvailableService $service)
-    {
-        $this->service = $service;
+
+    public function __construct(
+        private LanguagesAvailableService $service)
+    {  
     }
 
-    /**
-     * Handle the POST request.
-     *
-     * @param array<string,mixed> $args Route parameters (not used currently).
-     * @return string JSON-encoded response.
-     */
-    public function __invoke(array $args = []): string
+    
+    public function __invoke(array $args = []): array
     {
-        header('Content-Type: application/json; charset=utf-8');
-
-        $raw = file_get_contents('php://input');
-        $payload = json_decode($raw, true);
-
-        if (!is_array($payload)) {
-            $payload = [];
+        $body = $args['body'] ?? [];
+        if (!is_array($body)) {
+            $body = [];
         }
+        try {
+            // Delegate all business logic to the service.
+            $result = $this->service->getLanguagesWithProducts($body);
 
-        $languages = $this->service->getLanguagesWithProducts($payload);
+            // If the service already returns the final shape, pass it through.
+            // Otherwise, normalise here.
+            return [
+                'error'     => '',
+                'languages' => $result['languages'] ?? $result,
+                'meta'      => $result['meta']      ?? null,
+            ];
+        } catch (\Throwable $e) {
+            // Log full details for you
+            LoggerService::logError(
+                'LanguagesAvailableController.exception',
+                [
+                    'payload' => $body,
+                    'message' => $e->getMessage(),
+                    'trace'   => $e->getTraceAsString(),
+                ]
+            );
 
-        return json_encode($languages);
+            // Return a clear error message for the remote developer
+            return [
+                'error'     => 'Error while retrieving languages: ' . $e->getMessage(),
+                'languages' => [],
+                'meta'      => null,
+            ];
+        }
     }
 }

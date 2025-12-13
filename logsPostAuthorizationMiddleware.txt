@@ -1,0 +1,12 @@
+array(5) {
+  ["bid"]=>
+  string(4) "1257"
+  ["reference"]=>
+  string(12) "John 3:16-18"
+  ["languageCodeIso"]=>
+  string(3) "eng"
+  ["format"]=>
+  string(5) "plain"
+  ["includeVerseNumbers"]=>
+  bool(true)
+}

@@ -34,7 +34,7 @@ class PostInputService
 
             if (json_last_error() === JSON_ERROR_NONE &&
                 is_array($decoded)) {
-                return $this->sanitizer->sanitizeArray($decoded);
+                return $this->sanitizer->sanitize($decoded);
             }
 
             // If JSON is invalid, fall back to empty array
@@ -44,6 +44,6 @@ class PostInputService
         // Default: treat as form-encoded POST
         $post = $_POST ?? [];
 
-        return $this->sanitizer->sanitizeArray($post);
+        return $this->sanitizer->sanitize($post);
     }
 }
