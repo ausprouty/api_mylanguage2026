@@ -112,7 +112,45 @@ class BibleGatewayPassageService extends AbstractBiblePassageService
         $newDom->appendChild($passageDiv);
         $xp2 = new \DOMXPath($newDom);
 
-        foreach ($xp2->query("//div[contains(concat(' ', normalize-space(@class), ' '), ' footnotes ')]|//script|//style|//noscript|//template|//sup|//h3|//a") as $n) {
+        foreach ($xp2->query(
+            "//div[contains(concat(' ', normalize-space(@class), ' '), ' footnotes ')]"
+            . "|//div[contains(concat(' ', normalize-space(@class), ' '), ' crossrefs ')]"
+            . "|//script|//style|//noscript|//template|//h3"
+        ) as $n) {
+            $n->parentNode->removeChild($n);
+        }
+
+        // remove <sup> except chapternum/versenum (BibleGateway verse numbers)
+        foreach ($xp2->query(
+            "//sup[not(contains(concat(' ', normalize-space(@class), ' '), ' chapternum '))"
+            . " and not(contains(concat(' ', normalize-space(@class), ' '), ' versenum '))]"
+        ) as $n) {
+            $n->parentNode->removeChild($n);
+        }
+
+        // unwrap <a> (keep text/children, drop link)
+        foreach ($xp2->query("//a") as $n) {
+            $p = $n->parentNode;
+            while ($n->firstChild) {
+                $p->insertBefore($n->firstChild, $n);
+            }
+            $p->removeChild($n);
+        }
+
+        // remove HTML comments like <!--end of crossrefs-->
+        foreach ($xp2->query("//comment()") as $n) {
+            $n->parentNode->removeChild($n);
+        }
+
+        // remove stray "Read full chapter" text nodes (left behind after unwrapping <a>)
+        foreach ($xp2->query("//text()[normalize-space(.)='Read full chapter']") as $n) {
+            $n->parentNode->removeChild($n);
+        }
+
+        // remove empty il-text blocks
+        foreach ($xp2->query(
+            "//div[contains(concat(' ', normalize-space(@class), ' '), ' il-text ')][not(normalize-space()) and not(*)]"
+        ) as $n) {
             $n->parentNode->removeChild($n);
         }
 
@@ -132,9 +170,45 @@ class BibleGatewayPassageService extends AbstractBiblePassageService
             $n->parentNode->replaceChild($span, $n);
         }
 
-        $out = $newDom->saveHTML($newDom->documentElement);
-        LoggerService::logInfo('PassageText:done', "ms=" . (int)((microtime(true) - $t0) * 1000) . " out_bytes=" . strlen($out));
+       $root = $newDom->documentElement; // div.passage-text
+
+        // Return inner HTML (strip the outer wrapper div)
+        $out = '';
+        foreach ($root->childNodes as $child) {
+            $out .= $newDom->saveHTML($child);
+        }
+
+        // Minify whitespace added by DOMDocument (newlines/indentation)
+        $out = preg_replace("/>\s+</u", "><", $out);
+        $out = trim($out);
+
+        LoggerService::logInfo(
+            'PassageText:done',
+            "ms=" . (int)((microtime(true) - $t0) * 1000)
+            . " out_bytes=" . strlen($out)
+        );
+
+        $std = $xp2->query(
+            "//div[contains(concat(' ', normalize-space(@class), ' '), ' std-text ')]"
+        );
+
+        $root = ($std->length > 0) ? $std->item(0) : $newDom->documentElement;
+        // pick the deepest “real content” div
+        // Return HTML for that node (keep std-text wrapper)
+        $out = $newDom->saveHTML($root);
+
+        // Minify whitespace/newlines added by DOMDocument
+        $out = preg_replace("/>\s+</u", "><", $out);
+        $out = trim($out);
+
+        LoggerService::logInfo(
+            'PassageText:done',
+            "ms=" . (int)((microtime(true) - $t0) * 1000)
+            . " out_bytes=" . strlen($out)
+        );
+
         return $out;
+
     }
 
     public function getReferenceLocalLanguage(): string

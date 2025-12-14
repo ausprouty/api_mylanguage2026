@@ -136,13 +136,12 @@ class PassageRepository extends BaseRepository
     }
 
     /**
-     * Updates the usage statistics for a Bible passage.
+     * Persists the usage statistics for a Bible passage.
      *
      * @param PassageModel $biblePassage The Bible passage to update.
      */
     public function updatePassageUse(PassageModel $biblePassage): void
     {
-        $biblePassage->updateUsage();
         $query = 'UPDATE bible_passages
                   SET dateLastUsed = :dateLastUsed, timesUsed = :timesUsed
                   WHERE bpid = :bpid LIMIT 1';

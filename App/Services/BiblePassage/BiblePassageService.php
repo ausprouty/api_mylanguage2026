@@ -148,12 +148,22 @@ final class BiblePassageService
      */
     private function updateUsage(PassageModel $passageModel): void
     {
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 6);
+
+        LoggerService::logDebug('BiblePassageService', [
+            'updateUsage-hit',
+            'passageId' => $passageModel->getBpid(),          // adjust to your PK getter
+            'timesUsed_before' => $passageModel->getTimesUsed(),
+            'caller1' => ($trace[1]['function'] ?? null) . ' @ ' . ($trace[1]['file'] ?? '') . ':' . ($trace[1]['line'] ?? ''),
+            'caller2' => ($trace[2]['function'] ?? null) . ' @ ' . ($trace[2]['file'] ?? '') . ':' . ($trace[2]['line'] ?? ''),
+        ]);
+
         $passageModel->setDateLastUsed(date('Y-m-d'));
         $passageModel->setTimesUsed($passageModel->getTimesUsed() + 1);
 
-        // Save the updated usage information to the database.
         $this->passageRepository->updatePassageUse($passageModel);
     }
+
     /**
      * Retrieves the passage from an external source using the appropriate service.
      */
