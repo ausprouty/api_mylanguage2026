@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Services\BiblePassage;
-
+use App\Configuration\Config;
 use App\Models\Bible\BibleModel;
 use App\Models\Bible\PassageModel;
 use App\Models\Bible\PassageReferenceModel;
@@ -19,9 +19,9 @@ abstract class AbstractBiblePassageService
     /** @var PassageReferenceModel|null */
     protected ?PassageReferenceModel $passageReference = null;
 
-    protected BibleModel $bible;
-    protected DatabaseService $databaseService;
-    protected PassageRepository $passageRepository;
+    protected ?BibleModel $bible = null;
+    protected ?DatabaseService $databaseService = null;
+    protected ?PassageRepository $passageRepository = null;
     /** @var array<string,mixed>|string|null */
     protected array|string|null $webpage = null;
     protected ?string $bpid = null;
@@ -89,6 +89,19 @@ abstract class AbstractBiblePassageService
          PassageReferenceModel $reference
     ): PassageModel
     {
+        if ($this->bible === null) {
+            throw new \RuntimeException(
+                'BiblePassageService not initialized: $bible is null. ' .
+                'Did the subclass forget to call parent::__construct()?'
+            );
+        }
+        if ($this->passageRepository === null) {
+            throw new \RuntimeException(
+                'BiblePassageService not initialized: $passageRepository is null.'
+            );
+        }
+
+
        // Bind the reference to this instance for downstream abstract methods.
         $this->passageReference = $reference;
 

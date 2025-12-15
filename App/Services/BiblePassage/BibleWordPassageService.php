@@ -187,20 +187,78 @@ class BibleWordPassageService extends AbstractBiblePassageService
         return (int) trim(substr($line, $start + 1, $end - $start - 1));
     }
 
-    /** Local-language book title from <title> + verse range. */
     public function getReferenceLocalLanguage(): string
     {
         $html = $this->webpage[0] ?? '';
-        if ($html === '') {
-            return $this->passageReference->getVerseStart() . '-' . $this->passageReference->getVerseEnd();
+
+        $vs = (int) $this->passageReference->getVerseStart();
+        $ve = (int) $this->passageReference->getVerseEnd();
+
+        // Safe fallback if we can't read HTML/title
+        if ($html === '' || !preg_match('/<title>(.*?)<\/title>/iu', $html, $m)) {
+            return $vs . '-' . $ve;
         }
 
-        preg_match('/<title>(.*?)<\/title>/i', $html, $m);
-        $title = $m[1] ?? '';
+        $title = trim($m[1] ?? '');
+        if ($title === '') {
+            return $vs . '-' . $ve;
+        }
 
-        preg_match('/^([^\d]+)/u', $title, $m2);
-        $book = isset($m2[1]) ? trim($m2[1]) : '';
+        // ------------------------------------------------------------
+        // 1) Remove translation/publisher suffixes and keep book+chapter
+        // ------------------------------------------------------------
 
-        return $book . ':' . $this->passageReference->getVerseStart() . '-' . $this->passageReference->getVerseEnd();
+        // If there's a comma, keep the part AFTER the last comma
+        // e.g. "Krishti Shpëtimtari , GJONI 3" -> "GJONI 3"
+        if (preg_match('/[,，]/u', $title)) {
+            $parts = preg_split('/[,，]/u', $title);
+            $title = trim(end($parts));
+        }
+
+        // If there's a semicolon, drop everything after it
+        // e.g. "3GJONI 1 ; Bibël - Dhjata e Re" -> "3GJONI 1"
+        $title = preg_replace('/\s*[;；].*$/u', '', $title);
+        $title = trim($title);
+
+        // Normalize "3GJONI" -> "3 GJONI" (digit glued to letters)
+        $title = preg_replace('/^(\d)(\p{L})/u', '$1 $2', $title);
+
+        // ------------------------------------------------------------
+        // 2) Extract BOOK + CHAPTER from known title patterns
+        // ------------------------------------------------------------
+
+        // Korean-style: "예레미야 애가 1: 성경 - 구약 성서"
+        // => book="예레미야 애가", ch=1
+        if (preg_match('/^(.+?)\s+(\d+)\s*[:：]/u', $title, $m2)) {
+            $book = trim($m2[1]);
+            $ch   = (int) $m2[2];
+            return $book . ' ' . $ch . ':' . $vs . '-' . $ve;
+        }
+
+        // Portuguese/Spanish/English worded chapter:
+        // "Cantares de Salomão capítulo 1"
+        // "Cantares de Salomão capitulo 1"
+        // "Song of Songs chapter 1"
+        if (preg_match(
+            '/^(.+?)\s+(?:cap[ií]tulo|chapter)\s+(\d+)\s*$/iu',
+            $title,
+            $m2
+        )) {
+            $book = trim($m2[1]);
+            $ch   = (int) $m2[2];
+            return $book . ' ' . $ch . ':' . $vs . '-' . $ve;
+        }
+
+        // Generic: ends with chapter number
+        // "GJONI 3", "1 GJONI 5", "3 GJONI 1"
+        if (preg_match('/^(.+?)\s+(\d+)\s*$/u', $title, $m2)) {
+            $book = trim($m2[1]);
+            $ch   = (int) $m2[2];
+            return $book . ' ' . $ch . ':' . $vs . '-' . $ve;
+        }
+
+        // Last resort: return cleaned title + verses
+        return $title . ':' . $vs . '-' . $ve;
     }
+
 }

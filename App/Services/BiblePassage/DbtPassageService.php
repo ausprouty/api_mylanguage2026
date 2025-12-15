@@ -2,7 +2,7 @@
 
 namespace App\Services\BiblePassage;
 
-
+use App\Configuration\Config;
 
 /**
  * DbtPassageService returns links to  https://live.bible.is/
@@ -11,9 +11,6 @@ namespace App\Services\BiblePassage;
 class DbtPassageService extends AbstractBiblePassageService
 {
    
-    public function __construct(){
-
-    }
 
    /**
      * Get the URL for the passage.
@@ -59,7 +56,8 @@ class DbtPassageService extends AbstractBiblePassageService
      *
      * @return string The text of the passage.
      */
-     public function getPassageText(): string{
+     public function getPassageText(): string
+     {
         return ' ';
      }
 
@@ -69,8 +67,8 @@ class DbtPassageService extends AbstractBiblePassageService
      *
      * @return string The local language reference.
      */
-     public function getReferenceLocalLanguage(): string;{
-         $first = $this->webpage[0] ?? null;
+     public function getReferenceLocalLanguage(): string{
+        $first = $this->webpage[0] ?? null;
         $book  = is_array($first) ? ($first['book_name_alt'] ?? null) : ($first->book_name_alt ?? null);
         $verses =  $this->passageReference->getChapterStart().':'
                 . $this->passageReference->getVerseStart().'-'
