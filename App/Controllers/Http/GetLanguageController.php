@@ -15,7 +15,7 @@ reintroduce RTL, etc.
 
 declare(strict_types=1);
 
-namespace App\Http\Controllers;
+namespace App\Controllers\Http;
 
 use App\Repositories\BibleRepository;
 use App\Factories\PassageReferenceFactory;
