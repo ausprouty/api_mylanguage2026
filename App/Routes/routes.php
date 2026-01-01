@@ -5,132 +5,109 @@ use App\Configuration\Config;
 use App\Responses\JsonResponse;
 use App\Services\LoggerService;
 use App\Http\Handlers\PostHandler;
-use Psr\Container\ContainerInterface;
 
-
-
-return function (RouteCollector $r) {
-
-    // Normalize basePath to: ""  or "/something" (no trailing slash)
+return function (RouteCollector $r): void {
+    // Normalize basePath to: "" or "/something" (no trailing slash)
     $rawBase = (string) (Config::get('base_path') ?? '');
     $basePath = rtrim('/' . ltrim($rawBase, '/'), '/');
-    if ($basePath === '/') { $basePath = ''; } // treat "/" as empty
-    LoggerService::logInfo('router.basePath', ['raw' => $rawBase, 'normalized' => $basePath]);
-   
+    if ($basePath === '/') {
+        $basePath = '';
+    }
+
+    LoggerService::logInfo(
+        'router.basePath',
+        ['raw' => $rawBase, 'normalized' => $basePath]
+    );
+
     $container = require __DIR__ . '/../Configuration/container.php';
     $postHandler = new PostHandler($container);
 
+    // Call a controller method from the DI container (fast to type).
+    $call = static function (string $class, string $method) use ($container) {
+        return static function ($args) use ($container, $class, $method) {
+            return $container->get($class)->{$method}($args);
+        };
+    };
+
+    // Convenience wrapper for POST controllers that use PostHandler.
+    $post = static function (string $class) use ($postHandler) {
+        return $postHandler->make($class);
+    };
+
     // root
-    $r->addRoute('GET', '/', static function (): void {
-        header('Content-Type: application/json; charset=utf-8');
-        http_response_code(200);
-        echo json_encode([
-            'ok'      => true,
-            'service' => 'api2.mylanguage.net.au',
-            'time'    => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format(DateTimeInterface::RFC3339),
-        ]);
-    });
-
-    // Minimal debug endpoint: GET {basePath}/_debug/ping
-    $r->addRoute('GET', '/api_mylanguage2026/_debug/ping2', function () {
-        header('Content-Type: text/plain');
-        echo 'OK literal';
-        return null;
-    });
-
-    //test
-    $r->addGroup($basePath . 'api/test', function (RouteCollector $group) use ($container) {
-        $group->addRoute('GET', '', function () use ($container) {
-            return $container->get(App\Controllers\TestBibleBrainController::class)
-                ->logFiveLanguages();
-        });
-    });
-
-    // version 2  Available
-
-     $r->addGroup( $basePath . '/api/v2/available',
-        function (RouteCollector $g) use ($postHandler) {
-            $g->addRoute(
-                'POST', 
-                '/bibles', 
-                 $postHandler->make(
-                    \App\Controllers\Bibles\BiblesAvailableController::class
-                )
-            );
-
-           $g->addRoute(
-                'POST',
-                '/languages',
-                $postHandler->make(
-                    \App\Controllers\Language\LanguagesAvailableController::class
-                )
-            );
-
-
+    $r->addRoute('GET', '/',
+        static function (): void {
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(200);
+            echo json_encode([
+                'ok'      => true,
+                'service' => 'api2.mylanguage.net.au',
+                'time'    => (new DateTimeImmutable(
+                    'now',
+                    new DateTimeZone('UTC')
+                ))->format(DateTimeInterface::RFC3339),
+            ]);
         }
     );
-    // version 2  Bible
 
-    $r->addGroup(
-    $basePath . '/api/v2/bible',
-    function (RouteCollector $g) use ($postHandler) {
-        $g->addRoute(
-            'POST',
-            '/passage',
-            $postHandler->make(
-                \App\Controllers\BiblePassage\PassageRetrieverController::class
-            )
-        );
-    }
-);
+    // Minimal debug endpoint
+    $r->addRoute('GET', '/api_mylanguage2026/_debug/ping2',
+        static function () {
+            header('Content-Type: text/plain');
+            echo 'OK literal';
+            return null;
+        }
+    );
+
+    // test
+    $r->addGroup($basePath . '/api/test',
+        function (RouteCollector $g) use ($call) {
+            $g->addRoute('GET', '',
+                $call(
+                    \App\Controllers\TestBibleBrainController::class,
+                    'logFiveLanguages'
+                ));
+        }
+    );
+
+    // version 2 Available
+    $r->addGroup($basePath . '/api/v2/available',
+        function (RouteCollector $g) use ($post) {
+            $g->addRoute('POST', '/bibles',
+                $post(\App\Controllers\Bibles\BiblesAvailableController::class));
+
+            $g->addRoute('POST', '/languages',
+                $post(\App\Controllers\Language\LanguagesAvailableController::class));
+        }
+    );
+
+    // version 2 Bible
+    $r->addGroup($basePath . '/api/v2/bible',
+        function (RouteCollector $g) use ($post) {
+            $g->addRoute('POST', '/passage',
+                $post(\App\Controllers\BiblePassage\PassageRetrieverController::class));
+        }
+    );
 
     // version 2 Translate
+    $r->addGroup($basePath . '/api/v2/translate',
+        function (RouteCollector $g) use ($call) {
+            $g->addRoute('GET', '/cron/{token}',
+                $call(\App\Controllers\TranslationQueueController::class, '__invoke'));
 
-    $r->addGroup($basePath . '/api/v2/translate', function (RouteCollector $g)
-    use ($container) {
+            // GET /api/v2/translate/text/{kind}/{subject}/{languageCodeHL}?variant=
+            $g->addRoute('GET', '/text/{kind}/{subject}/{languageCodeHL}',
+                $call(\App\Controllers\StudyTextController::class, 'webFetch'));
 
-        $g->addRoute('GET', '/cron/{token}', function ($args) use ($container) {
-            $processor = $container->get(\App\Controllers\TranslationQueueController::class);
-             $c = $container->get(App\Controllers\TranslationQueueController::class);
-             return $c->__invoke($args);
-        });
+            $g->addRoute('GET', '/seasonal/{site}/{languageCodeGoogle}',
+                $call(\App\Controllers\SeasonalTextController::class, 'webFetch'));
 
-        // Unified for interface + commonContent
-        // GET /api/v2/translate/text/{kind}/{subject}/{languageCodeHL}?variant=
-        $g->addRoute('GET',
-            '/text/{kind}/{subject}/{languageCodeHL}',
-            function ($args) use ($container) {
-                $c = $container->get(App\Controllers\StudyTextController::class);
-                return $c->webFetch($args);
-            }
-        );
-
-        // Lesson content (clean signature). Make JF optional via query ?jf=
-        // GET /api/v2/translate/lessonContent/{languageCodeHL}/{study}/{lesson}?jf=
-        $g->addRoute('GET',
-            '/lessonContent/{languageCodeHL}/{study}/{lesson}',
-            function ($args) use ($container) {
-                // Controller reads optional $_GET['jf'] if present
-                $c = $container->get(App\Controllers\BibleStudyJsonController::class);
-                return $c->webFetchLessonContent($args);
-            }
-        );
-    });
-
-    // Lightweight router debug endpoint:
-    // GET {basePath}/_debug/router
-    $r->addGroup($basePath, function (RouteCollector $g) use ($basePath) {
-        $g->addRoute('GET', '/_debug/router', function () use ($basePath) {
-            return new JsonResponse([
-                'basePath' => $basePath,
-                'expectedExample' => $basePath . '/api/v2/translate/text/common/hope/eng00'
-            ]);
-        });
-     });
- };
-
-
-
+            // GET /api/v2/translate/lessonContent/{languageCodeHL}/{study}/{lesson}?jf=
+            $g->addRoute('GET', '/lessonContent/{languageCodeHL}/{study}/{lesson}',
+                $call(\App\Controllers\BibleStudyJsonController::class, 'webFetchLessonContent'));
+        }
+    );
+ 
     // legacy
     $r->addGroup($basePath . '/api/bible', function (RouteCollector $group) use ($container) {
         $group->addRoute('GET', '/best/{languageCodeHL}', function ($params) use ($container) {
@@ -197,5 +174,4 @@ return function (RouteCollector $r) {
             return $controller->webFetchJesusVideoUrls($args);
         });
     });
-
-    
+};

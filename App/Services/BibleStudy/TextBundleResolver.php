@@ -53,8 +53,9 @@ final class TextBundleResolver
         // DB: i18n_resources(type, subject, variant)
         // Example rows from your dump:
         //  (1) type='interface', subject='app',  variant='wsu'
-        //  (2) type='commonContent', subject='hope', variant='wsu'
-        if ($kind === 'interface') {
+        //  (2) type='siteContent', subject='app',  variant='wsu'
+        //  (3) type='commonContent', subject='hope', variant='wsu'
+        if ($kind === 'interface'||  $kind === 'siteContent') {
             $resourceSubject = 'app';           // DB resource subject
             $resourceVariant = $subject;        // site code, e.g. 'wsu'
             $clientCode      = $subject;        // i18n_clients.clientCode, e.g. 'wsu'

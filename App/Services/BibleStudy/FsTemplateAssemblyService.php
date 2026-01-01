@@ -166,8 +166,11 @@ final class FsTemplateAssemblyService implements TemplateAssemblyService
     private function schemaTag(string $kind): string
     {
         return match ($kind) {
-            'commonContent' => 'cc/1',
+           
             'interface'     => 'iface/1',
+            'siteContent'   => 'sc/1',
+            'commonContent' => 'cc/1',
+            'lessonContent' => 'lc/1',
             default         => 'unknown/0',
         };
     }

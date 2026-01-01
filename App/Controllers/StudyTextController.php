@@ -17,6 +17,7 @@ final class StudyTextController
     private const KINDS = [
         'common'    => 'commonContent',
         'commoncontent' =>'commonContent',
+        'sitecontent' => 'siteContent',
         'interface' => 'interface',
     ];
     private bool $debugController = false;
@@ -25,8 +26,8 @@ final class StudyTextController
 
     /**
      * Args:
-     * - kind: common | interface
-     * - subject: study or app code (normId'd)
+     * - kind: interface | site |common
+     * - subject: site or study
      * - languageCodeHL
      * - variant (optional)
      */
