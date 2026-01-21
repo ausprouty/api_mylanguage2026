@@ -57,11 +57,36 @@ final class BiblePassageJsonService
         string $languageCodeHL
     ): array {
         try {
+            $t0 = microtime(true);
+            // If you already pass rid in, use it. Otherwise generate one.
+            $rid = substr(bin2hex(random_bytes(8)), 0, 12);
             $this->initialize($study, $lesson, $languageCodeHL);
+            $t1 = microtime(true);
+
             $this->loadLanguageAndBible();
+            $t2 = microtime(true);
+
             $this->loadPassageRefs();
+            $t3 = microtime(true);
+
             $this->loadBibleText();
-            return $this->makeBlock();
+            $t4 = microtime(true); 
+
+            $block = $this->makeBlock();
+            $t5 = microtime(true);
+
+            LoggerService::logTiming('BiblePassageJsonServiceTiming', sprintf(
+                'rid=%s Initialize=%s LoadLanguageAndBible=%.0fms 
+                LoadPassageRefs=%.0fms LoadBibleText=%.0fms MakeBlock=%.0fms ',
+                $rid,
+                ($t1 - $t0) * 1000,
+                ($t2 - $t1) * 1000,
+                ($t3 - $t2) * 1000,
+                ($t4 - $t3) * 1000,
+                ($t5 - $t4) * 1000,
+                $study, $lesson, $languageCodeHL
+            ));
+            return $block;
             
         } catch (Throwable $e) {
             LoggerService::logException(
@@ -102,28 +127,51 @@ final class BiblePassageJsonService
 
     private function loadLanguageAndBible(): void
     {
+        $t0 = microtime(true);
+        $rid = substr(bin2hex(random_bytes(8)), 0, 12);
         $this->primaryLanguageModel =
             $this->languageRepository
                  ->findOneLanguageByLanguageCodeHL($this->languageCodeHL);
+        $t1 = microtime(true);
+        
         LoggerService::logDebug(
             'LanguageModel',
             'state',
             ['model' => $this->primaryLanguageModel->toArray()]
         );
+        $t2 = microtime(true);
 
         $this->primaryBibleModel = $this->bibleRepository
             ->findBestBibleByLanguageCodeHL($this->languageCodeHL);
-        LoggerService::logDebug(
-             'BibleModel',
+        $t3 = microtime(true);
+        
+        LoggerService::logTiming(
+            'BibleModel',
             'state',
-            [$this->primaryBibleModel->toArray()]
+            [[
+                'hl' => $this->languageCodeHL,
+                'isNull' => $this->primaryBibleModel === null,
+                'model' => $this->primaryBibleModel
+                    ? $this->primaryBibleModel->toArray()
+                    : null,
+            ]]
         );
+        $t4 = microtime(true);
 
         if ($this->primaryBibleModel === null) {
             throw new InvalidArgumentException(
                 'No primary Bible found for language ' . $this->languageCodeHL
             );
         }
+        LoggerService::logDebug('BiblePassageJsonService - loadLanguageAndBible - Timing', sprintf(
+                'rid=%s primaryLanguageModel=%s LoggerService=%.0fms 
+                primaryBibleModel=%.0fms LoggerService=%.0fms  ',
+                $rid,
+                ($t1 - $t0) * 1000,
+                ($t2 - $t1) * 1000,
+                ($t3 - $t2) * 1000,
+                ($t4 - $t3) * 1000
+            ));
     }
 
     private function loadPassageRefs(): void

@@ -66,7 +66,7 @@ class BibleGatewayPassageController
         $localRef = $this->getReferenceLocalLanguage($body);
         $t3       = microtime(true);
 
-        LoggerService::logInfo(
+        LoggerService::logTiming(
             'BGPC:timings',
             'format_ms=' . (int) (($t2 - $t1) * 1000)
             . ' ref_ms=' . (int) (($t3 - $t2) * 1000)

@@ -38,18 +38,8 @@ class BibleRepository extends BaseRepository
     ): ?BibleModel {
         $sql = '
             SELECT b.*
-            FROM hl_languages AS hl
-            JOIN bibles AS b
-            ON (
-                -- Chinese: match on script (zh-CN / zh-TW)
-                (hl.isChinese = 1
-                    AND b.languageCodeGoogle = hl.languageCodeGoogle)
-                OR
-                -- Non-Chinese: match directly on HL code
-                (COALESCE(hl.isChinese, 0) = 0
-                    AND b.languageCodeHL = hl.languageCodeHL)
-                )
-            WHERE hl.languageCodeHL = :hl
+            FROM bibles AS b
+            WHERE b.languageCodeHL = :hl
             ORDER BY b.weight DESC
             LIMIT 1
         ';
@@ -69,24 +59,14 @@ class BibleRepository extends BaseRepository
         string $languageCodeHL,
         string $testament = 'C'
     ): ?BibleModel {
-        $sql = '
+         $sql = '
             SELECT b.*
-            FROM hl_languages AS hl
-            JOIN bibles AS b
-            ON (
-                -- Chinese: match by script
-                (hl.isChinese = 1
-                    AND b.languageCodeGoogle = hl.languageCodeGoogle)
-                OR
-                -- Non-Chinese: match by HL code
-                (COALESCE(hl.isChinese, 0) = 0
-                    AND b.languageCodeHL = hl.languageCodeHL)
-                )
-            WHERE hl.languageCodeHL = :hl
-            AND (b.collectionCode = :complete
-                OR b.collectionCode = :testament)
+            FROM bibles AS b
+            WHERE b.languageCodeHL = :hl
             AND b.weight = 9
-            ORDER BY b.collectionCode DESC
+            AND (b.collectionCode = :complete OR b.collectionCode = :testament)
+            ORDER BY
+            CASE WHEN b.collectionCode = :complete THEN 1 ELSE 0 END DESC
             LIMIT 1
         ';
 

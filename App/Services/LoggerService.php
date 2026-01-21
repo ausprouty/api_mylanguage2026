@@ -111,6 +111,11 @@ class LoggerService
         self::$minLevelNum = self::levelNum($lvl);
     }
 
+    // setting for timing logs
+    private static ?bool $timingEnabled = null;
+    private static ?int $timingThresholdMs = null;
+
+
     // ---------- Public convenience methods (structured logging) ----------
 
     /** @param array<string,mixed> $ctx */
@@ -262,6 +267,49 @@ class LoggerService
     }
 
     /**
+     * Timing log helper.
+     *
+     * @param float $ms Duration in milliseconds
+     * @param array<string,mixed>|callable():array|null $ctx
+     */
+    public static function logTiming(
+        string $tag,
+        float $ms,
+        array|callable|null $ctx = null
+    ) : void {
+        if (!self::isTimingEnabled()) {
+            return;
+        }
+
+        $threshold = self::timingThresholdMs();
+        if ($ms < $threshold) {
+            return;
+        }
+
+        $payload = [
+            'ms' => round($ms, 3),
+        ];
+
+        if (is_array($ctx)) {
+            $payload = array_merge($payload, $ctx);
+        } elseif (is_callable($ctx)) {
+            try {
+                $v = $ctx();
+                if (is_array($v)) {
+                    $payload = array_merge($payload, $v);
+                } else {
+                    $payload['msg'] = (string) $v;
+                }
+            } catch (\Throwable $e) {
+                $payload['err'] = $e->getMessage();
+            }
+        }
+
+        self::log('INFO', 'timing.' . $tag, 'Timing', $payload);
+    }
+
+
+    /**
     * Debug logging for cron token flow.
     *
     * Controlled by Config key: logging.cron_token_debug (bool).
@@ -331,6 +379,32 @@ class LoggerService
         }
         return self::$cronTokenDebugEnabled;
     }
+
+    public static function isTimingEnabled() : bool
+    {
+        if (self::$timingEnabled === null) {
+            self::$timingEnabled =
+                Config::getBool('logging.log_timing', false);
+        }
+        return self::$timingEnabled;
+    }
+
+    private static function timingThresholdMs() : int
+    {
+        if (self::$timingThresholdMs !== null) {
+            return self::$timingThresholdMs;
+        }
+
+        $v = Config::get('logging.timing_threshold_ms', null);
+        if ($v === null) {
+            // Legacy key option if you ever want it:
+            $v = Config::get('timing_threshold_ms', 0);
+        }
+
+        self::$timingThresholdMs = max(0, (int) $v);
+        return self::$timingThresholdMs;
+    }
+
 
     /**
      * Allow tests/CLI to force or clear the flag cache at runtime.
