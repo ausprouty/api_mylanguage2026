@@ -75,17 +75,23 @@ final class BiblePassageJsonService
             $block = $this->makeBlock();
             $t5 = microtime(true);
 
-            LoggerService::logTiming('BiblePassageJsonServiceTiming', sprintf(
-                'rid=%s Initialize=%s LoadLanguageAndBible=%.0fms 
-                LoadPassageRefs=%.0fms LoadBibleText=%.0fms MakeBlock=%.0fms ',
+          LoggerService::logTimingSegments(
+                'BiblePassageJsonServiceTiming',
                 $rid,
-                ($t1 - $t0) * 1000,
-                ($t2 - $t1) * 1000,
-                ($t3 - $t2) * 1000,
-                ($t4 - $t3) * 1000,
-                ($t5 - $t4) * 1000,
-                $study, $lesson, $languageCodeHL
-            ));
+                [
+                    'initialize'        => [$t0, $t1],
+                    'loadLanguageBible' => [$t1, $t2],
+                    'loadPassageRefs'   => [$t2, $t3],
+                    'loadBibleText'     => [$t3, $t4],
+                    'makeBlock'         => [$t4, $t5],
+                ],
+                [
+                    'study' => $study,
+                    'lesson' => $lesson,
+                    'hl' => $languageCodeHL,
+                ]
+            );
+
             return $block;
             
         } catch (Throwable $e) {
@@ -145,7 +151,7 @@ final class BiblePassageJsonService
             ->findBestBibleByLanguageCodeHL($this->languageCodeHL);
         $t3 = microtime(true);
         
-        LoggerService::logTiming(
+        LoggerService::logDebug(
             'BibleModel',
             'state',
             [[

@@ -57,14 +57,21 @@ class LessonJsonService
             ];
             $mergedOutput = array_merge($bibleOutput, $videoOutput, $meta);
             $t3 = microtime(true);
-            LoggerService::logTiming('LessonJsonServiceTiming', sprintf(
-                'rid=%s bibleOutput=%s videoOutput=%.0fms Merge=%.0fms ',
+            LoggerService::logTimingSegments(
+                'LessonJsonServiceTiming',
                 $rid,
-                ($t1 - $t0) * 1000,
-                ($t2 - $t1) * 1000,
-                ($t3 - $t2) * 1000,
-                $study, $lesson, $languageCodeHL, (string)$languageCodeJF
-            ));
+                [
+                    'bibleOutput' => [$t0, $t1],
+                    'videoOutput' => [$t1, $t2],
+                    'merge'       => [$t2, $t3],
+                ],
+                [
+                    'study' => $study,
+                    'lesson' => $lesson,
+                    'hl' => $languageCodeHL,
+                    'jf' => (string) $languageCodeJF,
+                ]
+            );
             return $mergedOutput; 
            
         } catch (\Exception $e) {

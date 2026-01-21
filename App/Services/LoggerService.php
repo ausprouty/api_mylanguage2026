@@ -267,27 +267,51 @@ class LoggerService
     }
 
     /**
-     * Timing log helper.
+     * Log named timing segments using timestamps from microtime(true).
      *
-     * @param float $ms Duration in milliseconds
+     * - Converts (tEnd - tStart) to milliseconds internally.
+     * - Applies threshold to the SUM of all segment ms.
+     *
+     * @param array<string, array{0:float,1:float}> $segments
      * @param array<string,mixed>|callable():array|null $ctx
      */
-    public static function logTiming(
+    public static function logTimingSegments(
         string $tag,
-        float $ms,
+        string $rid,
+        array $segments,
         array|callable|null $ctx = null
     ) : void {
         if (!self::isTimingEnabled()) {
             return;
         }
 
+        $msMap = [];
+        $sumMs = 0.0;
+
+        foreach ($segments as $name => $pair) {
+            $a = (float) ($pair[0] ?? 0.0);
+            $b = (float) ($pair[1] ?? 0.0);
+
+            $ms = ($b - $a) * 1000.0;
+            if ($ms < 0) {
+                $ms = 0.0;
+            }
+
+            $ms = round($ms, 3);
+            $msMap[$name] = $ms;
+            $sumMs += $ms;
+        }
+
+        $sumMs = round($sumMs, 3);
+
         $threshold = self::timingThresholdMs();
-        if ($ms < $threshold) {
+        if ($sumMs < $threshold) {
             return;
         }
 
         $payload = [
-            'ms' => round($ms, 3),
+            'rid' => $rid,
+            'ms'  => array_merge($msMap, ['total' => $sumMs]),
         ];
 
         if (is_array($ctx)) {
@@ -307,6 +331,7 @@ class LoggerService
 
         self::log('INFO', 'timing.' . $tag, 'Timing', $payload);
     }
+
 
 
     /**
@@ -457,6 +482,7 @@ class LoggerService
  
          // Let the destination (e.g., Apache/Nginx error_log) add its own timestamp.
         // Keep our line clean to avoid duplicate date prefixes.
+
         $line =  ' [' . strtoupper($level) . ']'
             . ' [' . $context . '] '
             . self::compactOneLine($msg)
