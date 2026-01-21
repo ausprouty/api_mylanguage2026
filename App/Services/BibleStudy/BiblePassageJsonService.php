@@ -61,8 +61,8 @@ final class BiblePassageJsonService
             $this->loadLanguageAndBible();
             $this->loadPassageRefs();
             $this->loadBibleText();
-
             return $this->makeBlock();
+            
         } catch (Throwable $e) {
             LoggerService::logException(
                 'BiblePassageJsonService: generation failed',

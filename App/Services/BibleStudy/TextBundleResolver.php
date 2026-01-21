@@ -81,24 +81,33 @@ final class TextBundleResolver
             // Client identity by code (translator will resolve to clientId)
             'clientCode'      => $clientCode,
         ];
+     
+        
         LoggerService::logDebugI18n('TBR.ctx', [
-            'method'   => __METHOD__ ,
-            'function' => __FUNCTION__ ,
-            'line'     => __LINE__ ,
-            'ctx'   => $ctx,
-        ]);
+            // Decision summary (what we were asked for, and what we decided)
+            'kind'       => $kind,
+            'subject'    => $subject,
+            'lang'       => $languageCodeHL,
+            'baseLang'   => $this->translator->baseLanguage(),
+            'variant'    => $normVariant,
+            'isBaseLang' => $isBaseLang,
+            'hasVariant' => $hasVariant,
 
-        \App\Support\Trace::info('TextBundleResolver decision', [
-            'kind'         => $kind,
-            'subject'      => $subject,
-            'lang'         => $languageCodeHL,
-            'baseLang'     => $this->translator->baseLanguage(),
-            'variant'      => $normVariant,
-            'isBaseLang'   => $isBaseLang,
-            'hasVariant'   => $hasVariant,
-            'tplKey'       => $tplKey,
-            'trKey'        => $this->trKey($kind,$subject,$languageCodeHL,$normVariant,$ver),
+            // Cache/template keys used for this resolution
+            'ver'        => $ver,
+            'tplKey'     => $tplKey,
+            'trKey'      => $this->trKey(
+                $kind,
+                $subject,
+                $languageCodeHL,
+                $normVariant,
+                $ver
+            ),
+
+            // DB lookup context (authoritative tuple)
+            'ctx'        => $ctx,
         ]);
+        
 
         // Base-language fast-path, but seed stringIds so i18n_strings is populated
         if ($isBaseLang && !$hasVariant) {
@@ -115,9 +124,6 @@ final class TextBundleResolver
             $out = $base;
             $etag = $this->etag($out, $ver);
             LoggerService::logDebugI18n('TBR.outEn', [
-                'method'   => __METHOD__ ,
-                'function' => __FUNCTION__ ,
-                'line'     => __LINE__ ,
                 'out'      => $out,
             ]);
             return ['data' => $out, 'etag' => $etag];

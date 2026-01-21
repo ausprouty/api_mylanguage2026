@@ -74,11 +74,14 @@ final class BiblePassageService
 
         // Generate the Bible Passage ID (BPID).
         $this->bpid = $this->bibleModel->getBid() . '-' . $this->passageReferenceModel->getPassageID();
+        LoggerService::logDebug('BiblePassageService', ['bpid'=> $this->bpid]);
 
         // Check if the passage is in the database or fetch it externally.
         if ($this->inDatabase($this->bpid)) {
+            LoggerService::logDebug('BiblePassageService', 'Passage In Database');
             $passageModel = $this->retrieveStoredData($this->bpid);
         } else {
+            LoggerService::logDebug('BiblePassageService', 'Passage NOT IN Database');
             $passageModel = $this->retrieveExternalPassage( $this->passageReferenceModel);
         }
 
