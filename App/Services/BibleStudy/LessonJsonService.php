@@ -34,6 +34,9 @@ class LessonJsonService
                 $lesson, 
                 $languageCodeHL
             );
+            LoggerService::logDebug('LessonJsonService', [
+                'bibleOutput'=> $bibleOutput
+            ]);
             $t1 = microtime(true);
             $videoOutput = ['video'=> null];
             if ($languageCodeJF){
@@ -46,10 +49,19 @@ class LessonJsonService
             }
             $complete = true;
             $t2 = microtime(true);
-            if (!$bibleOutput){
-                $complete = false;
-                LoggerService::logError ('LessonService-46', "No Bible Text for  $study / $lesson / $languageCodeHL");
+            //  do we have passage data
+            $passage = '';
+            if (is_array($bibleOutput) && array_key_exists('passage', $bibleOutput)) {
+                $passage = trim((string) $bibleOutput['passage']);
             }
+            if ($passage === '') {
+                $complete = false;
+                LoggerService::logError(
+                    'LessonService-46',
+                    "No Bible Text for $study / $lesson / $languageCodeHL"
+                );
+            }
+
             $meta = [
                'meta' => [
                   'translationComplete' => $complete

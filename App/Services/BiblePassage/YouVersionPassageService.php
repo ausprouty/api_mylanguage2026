@@ -5,9 +5,11 @@ namespace App\Services\BiblePassage;
 use App\Factories\YouVersionConnectionFactory;      // ⬅ inject the factory
 use App\Models\Bible\BibleModel;
 use App\Services\BiblePassage\AbstractBiblePassageService;
+use App\Services\BiblePassage\YouVersionJsonExtractorService;
 use App\Services\Database\DatabaseService;
 use App\Services\LoggerService;
 use App\Services\Web\YouVersionConnectionService;
+
 
 class YouVersionPassageService extends AbstractBiblePassageService
 {
@@ -74,27 +76,12 @@ class YouVersionPassageService extends AbstractBiblePassageService
             return '';
         }
 
-        $posStart = strpos($html, 'verses":[{"reference"');
-        $posEnd   = ($posStart !== false) ? strpos($html, '"twitterCard":', $posStart) : false;
+        $x = YouVersionJsonExtractorService::extractFirstVerse($html);
 
-        if ($posStart === false || $posEnd === false) {
-            LoggerService::logError('YouVersionPassageService', 'Could not locate embedded JSON');
-            return '';
-        }
+        $this->referenceLocalLanguage = $x['reference_human'];
 
-        $length = $posEnd - $posStart - 1;
-        $jsonFrag = '{"' . substr($html, $posStart, $length) . '}';
-
-        $data = json_decode($jsonFrag);
-        if (json_last_error() !== JSON_ERROR_NONE || !isset($data->verses[0])) {
-            LoggerService::logError('YouVersionPassageService', 'Invalid JSON: ' . json_last_error_msg());
-            return '';
-        }
-
-        $this->referenceLocalLanguage = (string)($data->verses[0]->reference->human ?? '');
-        return (string)($data->verses[0]->content ?? '');
+        return $x['content'];
     }
-
     public function getReferenceLocalLanguage(): string
     {
         return $this->referenceLocalLanguage;

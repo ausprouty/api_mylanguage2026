@@ -1,5 +1,8 @@
 <?php
 
+
+declare(strict_types=1);
+
 namespace App\Services\BiblePassage;
 use App\Configuration\Config;
 use App\Models\Bible\BibleModel;
@@ -24,10 +27,13 @@ abstract class AbstractBiblePassageService
     protected ?PassageRepository $passageRepository = null;
     /** @var array<string,mixed>|string|null */
     protected array|string|null $webpage = null;
-    protected ?string $bpid = null;
-    protected ?string $passageText = null;
-    protected ?string $referenceLocalLanguage = null;
-    protected ?string $passageUrl = null;
+   protected ?string $bpid = null;
+
+    // These are used as strings downstream and/or returned as :string.
+    // Default them to empty string to avoid TypeErrors when parsing fails.
+    protected string $passageText = '';
+    protected string $referenceLocalLanguage = '';
+    protected string $passageUrl = '';
 
     /**
      * Constructor for initializing the BiblePassageService.
@@ -89,6 +95,11 @@ abstract class AbstractBiblePassageService
          PassageReferenceModel $reference
     ): PassageModel
     {
+        // Reset per-call values so a failed parse cannot leak old data.
+        $this->passageText = '';
+        $this->referenceLocalLanguage = '';
+        $this->passageUrl = '';
+
         if ($this->bible === null) {
             throw new \RuntimeException(
                 'BiblePassageService not initialized: $bible is null. ' .
@@ -109,7 +120,8 @@ abstract class AbstractBiblePassageService
         $this->passageUrl = $this->getPassageUrl();
         $this->webpage = $this->getWebPage();
         $this->passageText = $this->getPassageText();
-        $this->referenceLocalLanguage = $this->getReferenceLocalLanguage();
+        $this->referenceLocalLanguage = (string) $this->getReferenceLocalLanguage();
+ 
 
         // Generate a Bible Passage ID (BPID) based on the Bible ID and passage reference.
         $bpid = $this->bible->getBid() . '-' . $this->passageReference->getPassageID();
@@ -120,9 +132,9 @@ abstract class AbstractBiblePassageService
         $data->dateChecked = date('Y-m-d');
         $data->dateLastUsed = date('Y-m-d');
         $data->passageText = (string) $this->passageText;
-        $data->passageUrl = (string) $this->passageUrl;
+        $data->passageUrl = $this->passageUrl;
         $data->referenceLocalLanguage = (string) $this->referenceLocalLanguage;
-        $data->timesUsed = 1;
+        $data->timesUsed = 1; 
 
         // Create a PassageModel instance using the factory and save it to the repository if it has data
         $passageModel = PassageFactory::createFromData($data);
