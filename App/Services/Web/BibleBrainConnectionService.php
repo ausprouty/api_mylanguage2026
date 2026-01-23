@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Services\Web;
@@ -35,14 +36,22 @@ final class BibleBrainConnectionService extends WebsiteConnectionService
     {
         $root = (string) Config::get('endpoints.biblebrain', 'https://4.dbt.io');
         $baseUrl =  rtrim($root, "/ \t\n\r\0\x0B");
+        LoggerService::logDebug('BibleBrainConnectionService-baseUrl', $baseUrl);
         return $baseUrl;
     }
 
     /** API key for BibleBrain/DBT (empty means "do not attach"). */
-    private static function apiKey(): string
+   private static function apiKey(): string
     {
-        return (string) Config::get('api.biblebrain_key', '');
+        $key = (string) Config::get('api.bible_brain_key', '');
+        if ($key === '') {
+            throw new \RuntimeException(
+                'BibleBrain API key missing (config: api.bible_brain_key)'
+            );
+        }
+        return $key;
     }
+
 
     /**
      * Build a full URL and (optionally) attach query parameters + API key.
@@ -54,10 +63,10 @@ final class BibleBrainConnectionService extends WebsiteConnectionService
     {
         $endpoint = '/' . ltrim($endpoint, "/ \t\n\r\0\x0B");
 
-        $key = self::apiKey();
-        if ($key !== '') {
-            $query['key'] = $key;
-        }
+        // Default DBP version, if your endpoints actually expect it.
+        $query += ['v' => '4'];
+        // Require key
+        $query['key'] = self::apiKey();
 
         $url = self::baseUrl() . $endpoint;
 
@@ -69,10 +78,6 @@ final class BibleBrainConnectionService extends WebsiteConnectionService
     }
 
 
-    /**
-     * @param string $endpoint   e.g. "en/42/7.htm" (no leading slash)
-     * @param bool   $salvageJson allow trimming pre-JSON preamble (usually false; pages are HTML)
-     */
 
     public function fetchLanguagesForIsoOrHl(?string $iso, ?string $hl): array
     {
@@ -85,16 +90,14 @@ final class BibleBrainConnectionService extends WebsiteConnectionService
             $query['hl'] = $hl;
         }
 
-        $conn = new self('/api/languages', true, true, $query);
+        $conn = new self('/api/languages', $query,  true, true);
         return $conn->getJson() ?? [];
     }
 
     public function fetchTextFilesets(string $bibleId): array
     {
-                // Replace endpoint and parameter names to match the DBT API you use.
-        $conn = new self('/api/bibles/filesets', true, true, [
-            'v' => $bibleId,
-        ]);
+        // Replace endpoint and parameter names to match the DBT API you use.
+        $conn = new self('/api/bibles/filesets', ['v' => $bibleId], true, true);
         return $conn->getJson() ?? [];
     }
 }
