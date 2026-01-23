@@ -28,10 +28,8 @@ final class BibleBrainConnectionFactory
     ): BibleBrainConnectionService {
    
         // BibleBrainConnectionService expects:
-        // (HttpClientInterface, LoggerService, string, array, bool, bool)
+        // (string, array, bool, bool)
         return new BibleBrainConnectionService(
-            $this->http,
-            $this->logger,
             $endpoint,
             $params,
             $autoFetch,

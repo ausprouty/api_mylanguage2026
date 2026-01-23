@@ -161,6 +161,17 @@ class BibleGatewayPassageService extends AbstractBiblePassageService
             $n->parentNode->removeChild($n);
         }
 
+        // 4b) Remove inline reference headings like:
+        //     <h4 class="reference">See also Matthew 4:15-37</h4>
+        foreach ($xp2->query(
+            "//h4[contains(concat(' ', normalize-space(@class), ' '), ' reference ')]"
+        ) as $n) {
+            if ($n->parentNode) {
+                $n->parentNode->removeChild($n);
+            }
+        }
+
+
         // 5) Remove superscripts EXCEPT chapter/verse numbers.
         //    BibleGateway uses <sup class="versenum">…</sup> for verse numbers.
         foreach ($xp2->query(

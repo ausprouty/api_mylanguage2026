@@ -3,9 +3,7 @@
 namespace App\Services\BiblePassage;
 
 use App\Factories\BibleBrainConnectionFactory;
-//use App\Models\Bible\BibleModel;
 use App\Services\BiblePassage\AbstractBiblePassageService;
-//use App\Services\Database\DatabaseService;
 use App\Services\LoggerService;
 
 /**
@@ -46,6 +44,9 @@ class BibleBrainPassageService extends AbstractBiblePassageService
         $passageUrl .= $this->bible->getExternalId() . '/';
         $passageUrl .= $this->passageReference->getuversionBookID() . '/';
         $passageUrl .= $this->passageReference->getChapterStart();
+        LoggerService::logDebug('BibleBrainPassageService', [
+            'passageUrl'=> $passageUrl
+        ]);
         return $passageUrl;
     }
 
@@ -60,6 +61,9 @@ class BibleBrainPassageService extends AbstractBiblePassageService
             $this->passageReference->getBookID(),
             $this->passageReference->getChapterStart()
         );
+        LoggerService::logDebug('BibleBrainPassageService', [
+            'endpoint'=> $endpoint
+        ]);
 
         $params = [
             'verse_start' => $this->passageReference->getVerseStart(),
@@ -68,52 +72,125 @@ class BibleBrainPassageService extends AbstractBiblePassageService
 
         // ✅ build connection via factory (adds v/key/format from config)
         $conn = $this->bibleConnectionFactory->fromPath($endpoint, $params);
-        LoggerService::logDebug('BibleBrainPassageService-71', $conn);
+
+        // Log what we can about the request/response without assuming methods.
+        $diag = [
+            'hasConn' => (bool) $conn,
+            'class'   => is_object($conn) ? get_class($conn) : gettype($conn),
+        ];
+        if (is_object($conn)) {
+            if (method_exists($conn, 'getFinalUrl')) {
+                $diag['finalUrl'] = $conn->getFinalUrl();
+            }
+            if (method_exists($conn, 'getHttpCode')) {
+                $diag['httpCode'] = $conn->getHttpCode();
+            }
+            if (method_exists($conn, 'getElapsedMs')) {
+                $diag['elapsedMs'] = $conn->getElapsedMs();
+            }
+            if (method_exists($conn, 'getCurlErrno')) {
+                $diag['curlErrno'] = $conn->getCurlErrno();
+            }
+            if (method_exists($conn, 'getCurlError')) {
+                $diag['curlError'] = $conn->getCurlError();
+            }
+            if (method_exists($conn, 'getContentType')) {
+                $diag['contentType'] = $conn->getContentType();
+            }
+        }
+        LoggerService::logDebug('BibleBrainPassageService', [
+            'conn' => $diag,
+        ]);
 
         $json = $conn->getJson();
+        LoggerService::logDebug('BibleBrainPassageService', [
+            'json'=> $json
+        ]);
 
         // API usually returns {"data":[ ... ]}; fall back to root for safety
         $data = $json['data'] ?? (is_object($json) ? ($json->data ?? $json) : $json);
+        LoggerService::logDebug('BibleBrainPassageService', [
+            'data'=> $data
+        ]);
 
         // keep old $this->webpage expectation
         $this->webpage = is_array($data) ? $data : (array) $data;
-
+        LoggerService::logDebug('BibleBrainPassageService', [
+            'webpage'=> $this->webpage
+        ]);
         return $this->webpage;
     }
 
     public function getPassageText(): string
     {
+        // Ensure we have data. In your logs, webpage was empty and later code
+        // assumed index 0 existed.
+        if (empty($this->webpage)) {
+            $this->getWebPage();
+        }
+
         $items = $this->webpage ?? [];
         $out = '';
 
         foreach ($items as $item) {
             // allow array or object
-            $vs = is_array($item) ? ($item['verse_start'] ?? null) : ($item->verse_start ?? null);
-            $ve = is_array($item) ? ($item['verse_end']   ?? null) : ($item->verse_end   ?? null);
-            $vt = is_array($item) ? ($item['verse_text']  ?? '')   : ($item->verse_text  ?? '');
-
+            $vs = is_array($item)
+                ? ($item['verse_start'] ?? null)
+                : ($item->verse_start ?? null);
+            $ve = is_array($item)
+                ? ($item['verse_end'] ?? null)
+                : ($item->verse_end ?? null);
+            $vt = is_array($item)
+                ? ($item['verse_text'] ?? '')
+                : ($item->verse_text ?? '');
             if ($vs === null) {
                 continue;
             }
-            $num = ($ve === null || (string)$vs === (string)$ve) ? $vs : "{$vs}-{$ve}";
-            $out .= '<p><sup class="versenum">'.$num.'</sup>'.$vt.'</p>';
+
+            $num = ($ve === null || (string) $vs === (string) $ve)
+                ? $vs
+                : "{$vs}-{$ve}";
+
+            $out .= '<p><sup class="versenum">'
+                . $num
+                . '</sup>'
+                . $vt
+                . '</p>';
+  
         }
+        LoggerService::logDebug('BibleBrainPassageService', [
+            'out'=> $out
+        ]);
 
         return $out;
     }
 
     public function getReferenceLocalLanguage(): string
     {
-        $first = $this->webpage[0] ?? null;
-        $book  = is_array($first) ? ($first['book_name_alt'] ?? null) : ($first->book_name_alt ?? null);
-        $verses =  $this->passageReference->getChapterStart().':'
-                . $this->passageReference->getVerseStart().'-'
-                . $this->passageReference->getVerseEnd();
+        if (empty($this->webpage)) {
+            $this->getWebPage();
+        }
 
+        $first = $this->webpage[0] ?? null;
+        LoggerService::logDebug('BibleBrainPassageService', [
+            'firstItemPresent' => (bool) $first,
+        ]);
+
+        $book = is_array($first)
+            ? ($first['book_name_alt'] ?? null)
+            : (is_object($first) ? ($first->book_name_alt ?? null) : null);
+
+        $verses = $this->passageReference->getChapterStart()
+            . ':'
+            . $this->passageReference->getVerseStart()
+            . '-'
+            . $this->passageReference->getVerseEnd();
+ 
         if ($book) {
-            return $book.' '. $verses;
+            return $book . ' '. $verses;
                
         }
+        
         return $verses;
     }
 }
