@@ -9,6 +9,8 @@ use App\Services\LoggerService;
 /**
  * BibleBrainPassageService retrieves and formats Bible passage data from the
  * Bible Brain API.
+ * It will create endpoints like:
+ *    https://4.dbt.io/api/bibles/filesets/MLYBSMN_ET/LUK/18?verse_start=9&verse_end=17&v=4&key=YOUR_KEY
  * Keep parity with BibleWordPassageService: we must receive the
  * BibleModel (so $this->bible is initialised) and the DatabaseService
  * (for any local caching/helpers in AbstractBiblePassageService).

@@ -80,6 +80,9 @@ final class BiblePassageService
         if ($this->inDatabase($this->bpid)) {
             LoggerService::logDebug('BiblePassageService', 'Passage In Database');
             $passageModel = $this->retrieveStoredData($this->bpid);
+             LoggerService::logDebug('BiblePassageService', [
+                'passageModel' => $passageModel
+             ]);
         } else {
             LoggerService::logDebug('BiblePassageService', 'Passage NOT IN Database');
             $passageModel = $this->retrieveExternalPassage( $this->passageReferenceModel);
@@ -133,9 +136,14 @@ final class BiblePassageService
         if ($data === null) {
             throw new \RuntimeException("Passage not found: {$bpid}");
         }
-
+        LoggerService::debug('BiblePassageService - retrieveStoredData',[
+            'data'=>$data
+        ]);
         // Create a PassageModel from the retrieved data.
         $passageModel = PassageFactory::createFromData($data);
+        LoggerService::debug('BiblePassageService - retrieveStoredData',[
+            'passageModel'=>$passageModel
+        ]);
 
         // Update the usage statistics for the passage.
         $this->updateUsage($passageModel);

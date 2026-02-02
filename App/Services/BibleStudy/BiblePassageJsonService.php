@@ -222,8 +222,8 @@ final class BiblePassageJsonService
              $this->passageReferenceModel
         );
          LoggerService::logDebug(
-            'PassageModel',
-            'state',
+            'BiblePassageJsonService - loadBibleText',
+            'passageModel',
             ['model' => $this->passageModel->toArray()]
         );
     }
