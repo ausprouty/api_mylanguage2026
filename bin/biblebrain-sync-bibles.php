@@ -1,7 +1,7 @@
 <?php
 /* To run:
 
-cd /home/mylanguagenet/api2.mylanguage.net.au
+cd api2.mylanguage.net.au
 php bin/biblebrain-sync-bibles.php
 
 */

@@ -60,10 +60,9 @@ final class BibleBrainApiService
             throw new RuntimeException('Missing Bible Brain API key.');
         }
 
-        $q = $params + [
-            'v'   => '4',
-            'key' => $apiKey,
-        ];
+        $q = $params;
+        $q['v'] = '4';
+        $q['key'] = $apiKey;
 
         $url = self::apiBase() . '/' . $endpoint;
         $url .= '?' . http_build_query(
@@ -76,7 +75,8 @@ final class BibleBrainApiService
         $resp = $this->http->get($url);
 
         $body = (string) $resp->getBody();
-        $json = json_decode($body, true);
+        $json = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+
 
         if (!is_array($json)) {
             throw new RuntimeException(

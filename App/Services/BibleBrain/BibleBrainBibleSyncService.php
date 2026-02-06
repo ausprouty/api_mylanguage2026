@@ -106,7 +106,20 @@ class BibleBrainBibleSyncService
                     "Fetching endpoint={$endpoint}"
                 );
                 $t0 = microtime(true);
-                $connection = new BibleBrainConnectionService($endpoint, $query);
+                try{
+                    $connection = new BibleBrainConnectionService($endpoint, $query);
+                }catch (\Exception $e){
+                     // If your WebsiteConnectionService message looks like: "HTTP 404 from ..."
+                    if (strpos($e->getMessage(), 'HTTP 404') === 0) {
+                        throw new \RuntimeException(
+                            "Hard stop: BibleBrain returned 404 for {$endpoint}",
+                            0,
+                            $e
+                        );
+                    }
+                    // otherwise continue / handle as you already do
+                    throw $e;
+                }
                 $entries = $connection->response['data'] ?? [];
                 $ms = (int) ((microtime(true) - $t0) * 1000);
 

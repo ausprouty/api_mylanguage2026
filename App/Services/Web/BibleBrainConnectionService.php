@@ -56,22 +56,46 @@ final class BibleBrainConnectionService extends WebsiteConnectionService
     /**
      * Build a full URL and (optionally) attach query parameters + API key.
      *
-     * @param string               $endpoint e.g. "/api/languages" or "api/languages"
+     * @param string               $endpoint e.g. "/api/languages" (MUST start with /api/)
      * @param array<string,string> $query
      */
     private static function buildUrl(string $endpoint, array $query = []): string
     {
+        $endpoint = trim($endpoint);
+
+        // Do not allow query strings in the endpoint.
+        // This prevents URLs like: language_code=alz?v=4&key=...
+        if (strpos($endpoint, '?') !== false) {
+            throw new \InvalidArgumentException(
+                'BibleBrain endpoint must not contain "?". ' .
+                'Pass query parameters via the $query array.'
+            );
+        }
+
+        // Normalise to a leading slash.
         $endpoint = '/' . ltrim($endpoint, "/ \t\n\r\0\x0B");
 
-        // Default DBP version, if your endpoints actually expect it.
-        $query += ['v' => '4'];
-        // Require key
+        // Enforce explicit /api prefix (do NOT auto-add).
+        if (strpos($endpoint, '/api/') !== 0) {
+            throw new \InvalidArgumentException(
+                'BibleBrain endpoint must start with "/api/". ' .
+                'Example: "/api/bibles"'
+            );
+        }
+        // Always set required params (do not let caller override them).
+        $query['v'] = '4';
         $query['key'] = self::apiKey();
 
         $url = self::baseUrl() . $endpoint;
 
         if (!empty($query)) {
-            $url .= '?' . http_build_query($query);
+           $url .= '?' . http_build_query(
+                $query,
+                '',
+                '&',
+                PHP_QUERY_RFC3986
+            );
+
         }
 
         return $url;
@@ -81,7 +105,7 @@ final class BibleBrainConnectionService extends WebsiteConnectionService
 
     public function fetchLanguagesForIsoOrHl(?string $iso, ?string $hl): array
     {
- // Replace endpoint and parameter names to match the DBT API you use.
+    // Replace endpoint and parameter names to match the DBT API you use.
         $query = [];
         if ($iso) {
             $query['iso'] = $iso;
@@ -96,8 +120,12 @@ final class BibleBrainConnectionService extends WebsiteConnectionService
 
     public function fetchTextFilesets(string $bibleId): array
     {
-        // Replace endpoint and parameter names to match the DBT API you use.
-        new self('/api/bibles/filesets', ['bible_id' => $bibleId], true, true);
+         $conn = new self(
+            '/api/bibles/filesets',
+            ['bible_id' => $bibleId],
+            true,
+            true
+        );
         return $conn->getJson() ?? [];
     }
 }
