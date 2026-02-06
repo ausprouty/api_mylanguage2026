@@ -97,7 +97,7 @@ final class BibleBrainConnectionService extends WebsiteConnectionService
     public function fetchTextFilesets(string $bibleId): array
     {
         // Replace endpoint and parameter names to match the DBT API you use.
-        $conn = new self('/api/bibles/filesets', ['v' => $bibleId], true, true);
+        new self('/api/bibles/filesets', ['bible_id' => $bibleId], true, true);
         return $conn->getJson() ?? [];
     }
 }

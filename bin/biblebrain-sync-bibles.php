@@ -2,7 +2,7 @@
 /* To run:
 
 cd /home/mylanguagenet/api2.mylanguage.net.au
-php bin/biblebrain-bible-sync.php
+php bin/biblebrain-sync-bibles.php
 
 */
 

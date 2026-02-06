@@ -90,9 +90,11 @@ class BibleBrainBibleSyncService
             // BibleBrain generally uses ISO in lowercase.
             $isoLower = strtolower($iso);
 
-            // Keep your existing query style, but do not assume it is perfect.
-            // The BibleBrainConnectionService should append v/key (and /api) as needed.
-            $endpoint = "bibles?media_exclude=audio_drama&language_code={$isoLower}";
+            $endpoint = '/api/bibles';
+                $query = [
+                'media_exclude' => 'audio_drama',
+                'language_code' => $isoLower,
+            ];
 
             try {
                 LoggerService::logInfo(
@@ -104,7 +106,7 @@ class BibleBrainBibleSyncService
                     "Fetching endpoint={$endpoint}"
                 );
                 $t0 = microtime(true);
-                $connection = new BibleBrainConnectionService($endpoint);
+                $connection = new BibleBrainConnectionService($endpoint, $query);
                 $entries = $connection->response['data'] ?? [];
                 $ms = (int) ((microtime(true) - $t0) * 1000);
 
@@ -131,7 +133,7 @@ class BibleBrainBibleSyncService
 
             } catch (\Throwable $e) {
                 LoggerService::logInfo(
-                    +                    'BibleBrainSync-900',
+                    'BibleBrainSync-900',
                     "Failed for ISO {$isoLower}: "
                         . get_class($e)
                         . ' '

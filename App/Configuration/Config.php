@@ -20,12 +20,16 @@ class Config
            
         }
         // Decide environment (CLI won't have $_SERVER vars)
-        $envFromVar  = getenv('APP_ENV') ?: getenv('APP_MODE'); // allow override
+        $envFromVar = getenv('APP_ENV') ?: getenv('APP_MODE');
         if ($envFromVar) {
             $environment = strtolower($envFromVar);
+        } elseif (PHP_SAPI === 'cli') {
+            $environment = 'remote';
         } else {
             $server = $_SERVER['SERVER_NAME'] ?? $_SERVER['HTTP_HOST'] ?? '';
-            $environment = (in_array($server, ['localhost','127.0.0.1'], true)) ? 'local' : 'remote';
+            $environment = (in_array($server, ['localhost','127.0.0.1'], true))
+                ? 'local'
+                : 'remote';
         }
 
         // Where is your /private folder?

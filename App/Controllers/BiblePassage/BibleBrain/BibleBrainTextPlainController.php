@@ -31,16 +31,19 @@ class BibleBrainTextPlainController
         $passage = new PassageModel();
         $passage->setBpid($this->bibleReference->getBpid());
 
-        $url = sprintf(
-            '/bibles/filesets/%s/%s/%s/?verse_start=%s&verse_end=%s',
+        $endpoint = sprintf(
+            '/api/bibles/filesets/%s/%s/%s/',
             $this->bible->getExternalId(),
             $this->bibleReference->getBookId(),
-            $this->bibleReference->getChapterStart(),
-            $this->bibleReference->getVerseStart(),
-            $this->bibleReference->getVerseEnd()
+            $this->bibleReference->getChapterStart()
         );
 
-        $conn     = new BibleBrainConnectionService($url);
+        $query = [
+            'verse_start' => (string) $this->bibleReference->getVerseStart(),
+            'verse_end'   => (string) $this->bibleReference->getVerseEnd(),
+        ];
+
+        $conn = new BibleBrainConnectionService($endpoint, $query);
         $response = $conn->response ?? null;
 
         if (!$response || empty($response->data)) {
