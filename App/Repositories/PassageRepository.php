@@ -2,9 +2,11 @@
 
 namespace App\Repositories;
 
+use App\Factories\PassageFactory;
 use App\Models\Bible\PassageModel;
 use App\Services\Database\DatabaseService;
-use App\Factories\PassageFactory;
+use App\Services\LoggerService;
+
 use PDO;
 
 /**
@@ -60,9 +62,14 @@ class PassageRepository extends BaseRepository
         try {
             $results = $this->databaseService->executeQuery($query, $params);
             $data = $results->fetch(PDO::FETCH_OBJ);
-
+            LoggerService::logDebug('[PassageRepository -- findStoredById]',[
+                'data'=> $data
+            ]);
             if ($data) {
                 $biblePassage = PassageFactory::createFromData($data);
+                LoggerService::logDebug('[PassageRepository -- findStoredById]',[
+                'biblePassage'=> $biblePassage
+            ]);
                 return $biblePassage;
             }
         } catch (\Exception $e) {

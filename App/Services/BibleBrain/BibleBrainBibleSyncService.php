@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace App\Services\BibleBrain;
 
@@ -6,43 +7,61 @@ use App\Repositories\BibleBrainBibleRepository;
 use App\Repositories\BibleBrainLanguageRepository;
 use App\Services\Web\BibleBrainConnectionService;
 use App\Services\LoggerService;
+use DateTime;
+use Throwable;
 
 /**
  * BibleBrainBibleSyncService
  *
- * Meant to be run once per month via cron. Adds new BibleBrain text filesets
- * to the local `bibles` table and marks any unchanged records as verified.
+ * Run once per month (cron). Adds new BibleBrain *text* filesets to the local
+ * `bibles` table and updates missing fields for existing records.
+ *
+ * Safety goals:
+ * - Hard stop if already run this month (no accidental re-sync loops)
+ * - No destructive "clearCheckedBBBibles" reset
+ * - Handles BOTH fileset shapes seen in BibleBrain responses:
+ *   A) $entry['filesets']['dbp-prod'][] with keys: id/type/size/(volume?)
+ *   B) $entry['filesets'][] flat array with keys: id/set_type_code/set_size_code/meta[]
  */
 class BibleBrainBibleSyncService
 {
     private BibleBrainBibleRepository $repository;
     private BibleBrainLanguageRepository $languageRepository;
     private string $logFile;
-    private int $batchSize = 100;
 
     public function __construct(
-        BibleBrainBibleRepository $repository, 
+        BibleBrainBibleRepository $repository,
         BibleBrainLanguageRepository $languageRepository
-    )
-    {
+    ) {
         $this->repository = $repository;
         $this->languageRepository = $languageRepository;
         $this->logFile = __DIR__ . '/../../data/cron/last_biblebrain_bible_sync.txt';
     }
 
     /**
-     * Runs the sync if it hasn't already run this calendar month.
+     * Runs the sync if it has not already run this calendar month.
      */
     public function syncOncePerMonth(): void
     {
+        $startedAt = microtime(true);
+        LoggerService::logInfo('[BibleBrainSync-001]', 'Sync start.');
         if ($this->hasRunThisMonth()) {
-            LoggerService::logInfo('BibleBrainSync', 'Sync already performed this month. Skipping.');
-           // return;
+            LoggerService::logInfo(
+                '[BibleBrainSync-002]',
+                'Sync already performed this month. Skipping. logFile={$this->logFile}"
+             );'
+            );
+            return;
         }
-        $this->resetCheckDates();
+
         $this->syncNewBibles();
         $this->updateLastRunTimestamp();
-        LoggerService::logInfo('BibleBrainSync', 'Sync completed and timestamp updated.');
+
+        LoggerService::logInfo(
+             '[BibleBrainSync-003]',
+            'Sync completed and timestamp updated. duration_ms='
+                . (string) (int) ((microtime(true) - $startedAt) * 1000)
+        );
     }
 
     /**
@@ -51,71 +70,285 @@ class BibleBrainBibleSyncService
     private function syncNewBibles(): void
     {
         $addedCount = 0;
+        $languagesProcessed = 0;
 
-        while ($language = $this->languageRepository->getNextLanguageForBibleBrainSync()) {
-            $iso = strtoupper($language['languageCodeIso']);
-            $url = "bibles?media_exclude=audio_drama&language_code=$iso";
-
-            $connection = new BibleBrainConnectionService($url);
-            $entries = $connection->response['data'] ?? [];
-
-            foreach ($entries as $entry) {
-                $addedCount += $this->processEntry($entry, $language);
+        while ($language = $this->languageRepository
+            ->getNextLanguageForBibleBrainSync()
+        ) {
+            $iso = (string) ($language['languageCodeIso'] ?? '');
+            if ($iso === '') {
+                  LoggerService::logInfo(
+                    'BibleBrainSync-010',
+                    'Skipping language row with empty ISO.'
+                );
+                continue;
             }
+            
+            $languagesProcessed++;
+            $hl = (string) ($language['languageCodeHL'] ?? '');
+            $bbid = (string) ($language['languageCodeBibleBrain'] ?? '');
+            // BibleBrain generally uses ISO in lowercase.
+            $isoLower = strtolower($iso);
 
-            // Mark the language as checked whether or not new entries were added
-            $this->languageRepository->markLanguageAsChecked($language['languageCodeIso']);
+            // Keep your existing query style, but do not assume it is perfect.
+            // The BibleBrainConnectionService should append v/key (and /api) as needed.
+            $endpoint = "bibles?media_exclude=audio_drama&language_code={$isoLower}";
+
+            try {
+                LoggerService::logInfo(
+                    'BibleBrainSync-011',
+                    "Next language: HL={$hl} ISO={$iso} BBID={$bbid}"
+                );
+                LoggerService::logInfo(
+                    'BibleBrainSync-012',
+                    "Fetching endpoint={$endpoint}"
+                );
+                $t0 = microtime(true);
+                $connection = new BibleBrainConnectionService($endpoint);
+                $entries = $connection->response['data'] ?? [];
+                $ms = (int) ((microtime(true) - $t0) * 1000);
+
+                if (!is_array($entries)) {
+                    $entries = [];
+                }
+               LoggerService::logInfo(
+                    'BibleBrainSync-013',
+                    "Fetched entries=" . (string) count($entries) . " duration_ms={$ms}"
+                );
+                foreach ($entries as $entry) {
+                    if (!is_array($entry)) {
+                        continue;
+                    }
+                    $addedCount += $this->processEntry($entry, $language);
+                }
+
+                // Mark the language as checked whether or not new entries were added
+                $this->languageRepository->markLanguageAsChecked($iso);
+                LoggerService::logInfo(
+                    'BibleBrainSync-014',
+                    "Marked checkedBBBibles=CURDATE() for ISO={$isoLower}"
+                );
+
+            } catch (\Throwable $e) {
+                LoggerService::logInfo(
+                    +                    'BibleBrainSync-900',
+                    "Failed for ISO {$isoLower}: "
+                        . get_class($e)
+                        . ' '
+                        . $e->getMessage()
+                        . ' at '
+                        . $e->getFile()
+                        . ':'
+                );
+                // Do not mark as checked if the call failed
+            }
         }
 
-        LoggerService::logInfo('BibleBrainSync', "Total new entries added: $addedCount");
+        LoggerService::logInfo(
+             'BibleBrainSync-020',
+            "Sync loop finished. languagesProcessed={$languagesProcessed} totalAdded={$addedCount}"
+        );
     }
 
 
     /**
-     * Processes a single Bible entry from BibleBrain and inserts any new filesets.
+     * Processes a single Bible entry from BibleBrain and inserts any new text filesets.
+     *
+     * Accepts two shapes:
+     * 1) filesets['dbp-prod'][] with keys: id, type, size, (volume?), ...
+     * 2) filesets[] with keys: id, set_type_code, set_size_code, meta[], ...
      */
     private function processEntry(array $entry, array $language): int
-{
-    $added = 0;
-    $filesets = $entry['filesets']['dbp-prod'] ?? [];
+    {
+        $added = 0;
 
-    foreach ($filesets as $fs) {
-        if (
-            !str_starts_with($fs['type'], 'text') ||
-            !in_array($fs['size'], ['OT', 'NT', 'C'], true)
-        ) {
-            continue;
+        $filesets = $this->extractTextFilesetsFromEntry($entry);
+
+        foreach ($filesets as $fs) {
+            $id = (string) ($fs['id'] ?? '');
+            $type = (string) ($fs['type'] ?? '');
+            $size = (string) ($fs['size'] ?? '');
+
+            if ($id === '' || $type === '' || $size === '') {
+                LoggerService::logInfo('BibleBrainSync-110', 'Skip fileset: missing id/type/size.');
+                continue;
+            }
+
+            // Only text
+            if (!str_starts_with($type, 'text')) {
+                 LoggerService::logInfo(
+                    'BibleBrainSync-111',
+                    "Skip fileset {$id}: non-text type={$type}"
+                );
+                continue;
+            }
+
+            // Only OT/NT/Complete-ish. Be permissive to avoid silently skipping.
+            if (!$this->isCollectionSizeOk($size)) {
+                LoggerService::logInfo(
+                    'BibleBrainSync-112',
+                    "Skip fileset {$id}: size rejected size={$size}"
+                );
+                continue;
+            }
+
+            $volumeName = (string) ($fs['volume'] ?? '');
+            if ($volumeName === '') {
+                $volumeName = (string) ($entry['name'] ?? '');
+            }
+
+            if (!$this->repository->bibleRecordExists($id)) {
+                $this->repository->insertBibleRecord([
+                    'externalId'             => $id,
+                    'volumeName'             => $volumeName,
+                    'languageCodeIso'        => (string) ($language['languageCodeIso'] ?? ''),
+                    'languageCodeHL'         => (string) ($language['languageCodeHL'] ?? ''),
+                    'languageEnglish'        => (string) ($entry['language'] ?? ''),
+                    'languageName'           => (string) ($entry['autonym'] ?? ''),
+                    'languageCodeBibleBrain' => (string) ($entry['language_id'] ?? ''),
+                    'bibleBrainReviewed'     => (int) ($entry['reviewed'] ?? 0), // 0/1
+                    'source'                 => 'dbt',
+                    'format'                 => $type,
+                    'collectionCode'         => $size,
+                    'text'                   => 'Y',
+                    'audio'                  => '',
+                    'video'                  => '',
+                    'dateVerified'           => date('Y-m-d'),
+                ]);
+
+                LoggerService::logInfo(
+                    'BibleBrainSync-100',
+                    "Inserted new Bible fileset: {$id} ({$type}, {$size})"
+                );
+                $added++;
+            } else {
+                $this->repository->updateLanguageFieldsIfMissing($id, $entry);
+                LoggerService::logInfo(
+                    'BibleBrainSync-104',
+                    "Existing Record: {$id} ({$type}, {$size})"
+                );
+            }
         }
 
-        if (!$this->repository->bibleRecordExists($fs['id'])) {
-            $this->repository->insertBibleRecord([
-                'externalId'       => $fs['id'],
-                'volumeName'       => $fs['volume'] ?? $entry['name'] ?? '',
-                'languageCodeIso'  => $language['languageCodeIso'],
-                'languageCodeHL'   => $language['languageCodeHL'],
-                'languageEnglish'  => $entry['language'] ?? '',
-                'languageName'  => $entry['autonym'] ?? '',
-                'languageCodeBibleBrain' => $entry['language_id'] ?? '',
-                'source'           => 'dbt',
-                'format'           => $fs['type'],
-                'collectionCode'   => $fs['size'],
-                'text'             => 'Y',
-                'audio'            => '',
-                'video'            => '',
-                'dateVerified'     => date('Y-m-d'),
-            ]);
-
-            LoggerService::logInfo('BibleBrainSync-100', "Inserted new Bible fileset: {$fs['id']}");
-            $added++;
-        } else {
-            $this->repository->updateLanguageFieldsIfMissing($fs['id'], $entry);
-            LoggerService::logInfo('BibleBrainSync-104', "Existing Record: {$fs['id']}");
-        }
+        return $added;
     }
 
-    return $added;
-}
+    /**
+     * Returns a normalized list of filesets where each item contains:
+     * - id
+     * - type (text_json/text_usx/text_plain/text_format...)
+     * - size (NT/OT/C/NTP/OTP/etc.)
+     * - volume (best-effort)
+     */
+    private function extractTextFilesetsFromEntry(array $entry): array
+    {
+        // Shape A: filesets['dbp-prod'] (older style)
+        $filesets = $entry['filesets'] ?? null;
 
+        if (is_array($filesets) && isset($filesets['dbp-prod']) && is_array($filesets['dbp-prod'])) {
+            LoggerService::logInfo('BibleBrainSync-120', 'Filesets shape A detected (filesets[dbp-prod]).');
+            $out = [];
+            foreach ($filesets['dbp-prod'] as $fs) {
+                if (!is_array($fs)) {
+                    continue;
+                }
+                $id = (string) ($fs['id'] ?? '');
+                $type = (string) ($fs['type'] ?? '');
+                $size = (string) ($fs['size'] ?? '');
+
+                if ($id === '' || $type === '' || $size === '') {
+                    continue;
+                }
+
+                $out[] = [
+                    'id'     => $id,
+                    'type'   => $type,
+                    'size'   => $size,
+                    'volume' => (string) ($fs['volume'] ?? ''),
+                ];
+            }
+            LoggerService::logInfo(
+                'BibleBrainSync-121',
+                'Filesets extracted count=' . (string) count($out)
+            );
+            return $out;
+        }
+
+        // Shape B: filesets[] (newer style you pasted)
+        if (is_array($filesets) && $this->isListArray($filesets)) {
+            LoggerService::logInfo('BibleBrainSync-122', 'Filesets shape B detected (filesets list).');
+            $out = [];
+            foreach ($filesets as $fs) {
+                if (!is_array($fs)) {
+                    continue;
+                }
+
+                $id = (string) ($fs['id'] ?? '');
+                $type = (string) ($fs['set_type_code'] ?? '');
+                $size = (string) ($fs['set_size_code'] ?? '');
+
+                if ($id === '' || $type === '' || $size === '') {
+                    continue;
+                }
+
+                $volume = $this->filesetMetaValue($fs, 'volume');
+
+                $out[] = [
+                    'id'     => $id,
+                    'type'   => $type,
+                    'size'   => $size,
+                    'volume' => $volume,
+                ];
+            }
+            LoggerService::logInfo(
+                'BibleBrainSync-123',
+                'Filesets extracted count=' . (string) count($out)
+            );
+            return $out;
+        }
+
+        return [];
+    }
+
+    private function filesetMetaValue(array $fileset, string $key): string
+    {
+        $meta = $fileset['meta'] ?? [];
+        if (!is_array($meta)) {
+            return '';
+        }
+
+        foreach ($meta as $m) {
+            if (!is_array($m)) {
+                continue;
+            }
+            if (($m['name'] ?? '') === $key) {
+                return (string) ($m['description'] ?? '');
+            }
+        }
+
+        return '';
+    }
+
+    private function isCollectionSizeOk(string $size): bool
+    {
+        // Accept common BibleBrain size codes.
+        // Keep permissive to avoid dropping valid text sets.
+        // Examples seen: NT, OT, C, NTP, OTP, etc.
+        return preg_match('~^(NT|OT|C|NTP|OTP)~', $size) === 1;
+    }
+
+    private function isListArray(array $arr): bool
+    {
+        // True if keys are 0..n-1
+        $i = 0;
+        foreach ($arr as $k => $_) {
+            if ($k !== $i) {
+                return false;
+            }
+            $i++;
+        }
+        return true;
+    }
 
     /**
      * Checks whether the sync already ran this calendar month.
@@ -126,19 +359,12 @@ class BibleBrainBibleSyncService
             return false;
         }
 
-        $lastRun = trim(file_get_contents($this->logFile));
-        $lastDate = \DateTime::createFromFormat('Y-m-d', $lastRun);
-        $now = new \DateTime();
+        $lastRun = trim((string) file_get_contents($this->logFile));
+        $lastDate = DateTime::createFromFormat('Y-m-d', $lastRun);
+        $now = new DateTime();
 
-        return $lastDate && $lastDate->format('Y-m') === $now->format('Y-m');
-    }
-
-    /**
-     * clears checkedBBBibles
-     */
-    private function resetCheckDates(): void {
-        $this->languageRepository->clearCheckedBBBibles();
-        LoggerService::logInfo('BibleBrainBibleSyncService-130','Reset checkedBBBibles field');
+        return $lastDate instanceof DateTime
+            && $lastDate->format('Y-m') === $now->format('Y-m');
     }
 
     /**
@@ -146,6 +372,11 @@ class BibleBrainBibleSyncService
      */
     private function updateLastRunTimestamp(): void
     {
-        file_put_contents($this->logFile, date('Y-m-d'));
+        $value = date('Y-m-d');
+        $ok = file_put_contents($this->logFile, $value);
+        LoggerService::logInfo(
+            'BibleBrainSync-030',
+            "Updated last-run stamp file={$this->logFile} value={$value} bytesWritten=" . (string) $ok
+        );
     }
 }

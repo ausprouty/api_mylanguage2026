@@ -10,6 +10,8 @@ use DateTimeImmutable;
 use Throwable;
 
 /**
+ * Since there are no longer any source of dbt this routine is no longer needed
+ * 
  * One-time cleanup to correct externalId values in local `bibles`
  * by comparing against current BibleBrain filesets.
  *

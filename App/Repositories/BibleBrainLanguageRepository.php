@@ -39,10 +39,11 @@ class BibleBrainLanguageRepository extends BaseRepository
      */
     public function getNextLanguageForBibleBrainSync(): ?array
     {
+        //TODO: change interval back to 6 months.
         $query = 'SELECT languageCodeHL, languageCodeIso, languageCodeBibleBrain
                   FROM hl_languages
                   WHERE languageCodeBibleBrain IS NOT NULL
-                    AND (checkedBBBibles IS NULL OR checkedBBBibles < DATE_SUB(CURDATE(), INTERVAL 6 MONTH))
+                    AND (checkedBBBibles IS NULL OR checkedBBBibles < DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
                   ORDER BY languageCodeIso ASC
                   LIMIT 1';
 
@@ -50,11 +51,11 @@ class BibleBrainLanguageRepository extends BaseRepository
     }
 
       /**
-     * Updates CheckedBBBibles date to today for a given ISO code.
+     * Updates checkedBBBibles date to today for a given ISO code.
      */
     public function markLanguageAsChecked(string $languageCodeIso): void
     {
-        $query = 'UPDATE hl_languages SET CheckedBBBibles = CURDATE() WHERE languageCodeIso = :iso';
+        $query = 'UPDATE hl_languages SET checkedBBBibles = CURDATE() WHERE languageCodeIso = :iso';
         $this->databaseService->executeQuery($query, [':iso' => $languageCodeIso]);
     }
 
@@ -122,7 +123,7 @@ class BibleBrainLanguageRepository extends BaseRepository
         $query = 'SELECT languageCodeIso 
                   FROM hl_languages 
                   WHERE languageCodeBibleBrain IS NULL 
-                    AND CheckedBBBibles IS NOT NULL 
+                    AND checkedBBBibles IS NOT NULL 
                   LIMIT 1';
         return $this->databaseService->fetchColumn($query);
     }

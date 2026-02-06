@@ -136,12 +136,12 @@ final class BiblePassageService
         if ($data === null) {
             throw new \RuntimeException("Passage not found: {$bpid}");
         }
-        LoggerService::debug('BiblePassageService - retrieveStoredData',[
+        LoggerService::logDebug('BiblePassageService - retrieveStoredData',[
             'data'=>$data
         ]);
         // Create a PassageModel from the retrieved data.
         $passageModel = PassageFactory::createFromData($data);
-        LoggerService::debug('BiblePassageService - retrieveStoredData',[
+        LoggerService::logDebug('BiblePassageService - retrieveStoredData',[
             'passageModel'=>$passageModel
         ]);
 

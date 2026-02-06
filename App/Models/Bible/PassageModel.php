@@ -139,7 +139,7 @@ class PassageModel implements JsonSerializable
         }
     }
 
-        /**
+    /**
      * Normalise the local-language reference so it only contains
      * "BookName Chapter[:Verse[-Verse]]" and strips any trailing
      * translation names or extra lines.
@@ -158,15 +158,18 @@ class PassageModel implements JsonSerializable
         //    e.g. "Лука 18:18-30\nБиблия, нов превод ..." -> "Лука 18:18-30"
         $value = preg_replace('~\R.*$~u', '', $value);
 
-        // 2) Keep up to BookName + chapter[:verse[-verse]]
-        //    e.g. "લૂક 7:36-50 Gujarati: પવિત્ર બાઈબલ"
-        //         -> "લૂક 7:36-50"
-        $value = preg_replace(
-            '~^(.*?\d+(?::\d+(?:-\d+)?)?).*$~u',
-            '$1',
-            $value
-        );
-
+        // 2) Keep "BookName Chapter[:Verse[-Verse]]" only
+        //    Examples:
+        //      "2 Corinthians 5:16-21 NIV" -> "2 Corinthians 5:16-21"
+        //      "1 John 5:1-7"              -> "1 John 5:1-7"
+        //      "Лука 18:18-30 ..."         -> "Лука 18:18-30"
+        if (preg_match(
+            '~^(.+?)\s+(\d+(?::\d+(?:[-–]\d+)?)?)~u',
+            $value,
+            $m
+        )) {
+            $value = trim($m[1] . ' ' . $m[2]);
+        }
         return trim($value);
     }
 }
