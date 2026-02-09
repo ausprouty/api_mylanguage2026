@@ -156,6 +156,9 @@ class BibleBrainBibleSyncService
                         . ':'
                 );
                 // Do not mark as checked if the call failed
+            } finally {
+                // Always pause between BibleBrain calls to avoid overwhelming them.
+                $this->throttleBibleBrain();
             }
         }
 
@@ -394,4 +397,12 @@ class BibleBrainBibleSyncService
             "Updated last-run stamp file={$this->logFile} value={$value} bytesWritten=" . (string) $ok
         );
     }
+
+    private function throttleBibleBrain(int $minMs = 250, int $maxMs = 600): void
+    {
+        // Small jitter so runs do not look like a bot and to avoid sync spikes.
+        $ms = random_int($minMs, $maxMs);
+        usleep($ms * 1000);
+    }
+
 }

@@ -14,8 +14,9 @@ class WebsiteConnectionService
     private const MAX_REDIRECTS = 10;
     private const RETRY_MAX = 3;
     private const RETRY_BASE_MS = 250;   // 0.25s, then 0.5s, 1.0s...
+    // Only throttle/retry on server-side failures (and rate limiting).
+    // All other non-2xx responses should hard-stop the run.
     private const RETRY_HTTP = [429, 500, 502, 503, 504];
-
     /** Response state */
     protected string $url;
     protected string $body = '';
@@ -93,7 +94,7 @@ class WebsiteConnectionService
     }
 
     /**
-     * Single attempt with cURL. Throws on fatal/network/HTTP>=400.
+     *  Single attempt with cURL. Throws on fatal/network/non-2xx.
      */
     protected function doCurlRequest(): void
     {
@@ -116,7 +117,8 @@ class WebsiteConnectionService
             CURLOPT_ENCODING       => '', // allow all encodings
             CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST  => 'GET',
-            CURLOPT_USERAGENT      => 'HL/WebsiteConnectionService',
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; HL-API/1.0)',
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
             CURLOPT_HEADER         => false,
             CURLOPT_HEADERFUNCTION => function ($ch, $line) use (&$hdrs) {
                 $len = strlen($line);
@@ -154,16 +156,21 @@ class WebsiteConnectionService
         $this->headers = $hdrs;
 
         curl_close($ch);
-
-        if ($this->httpCode >= 400) {
+        
+        // Hard-stop on anything other than a 2xx response.
+        // (Throttling/retry decisions are handled by shouldRetry().)
+        if ($this->httpCode < 200 || $this->httpCode > 299) {
             $msg = 'HTTP ' . $this->httpCode . ' from ' . ($this->finalUrl
                 ?: $this->url);
-            LoggerService::logError('WebsiteConnectionService-http', $msg);
-            // Allow retry logic to handle certain codes
-            if (in_array($this->httpCode, self::RETRY_HTTP, true)) {
-                throw new Exception($msg);
-            }
-            // Non-retriable 4xx/5xx
+
+            // Log a small preview of the body to help diagnose WAF/HTML errors
+            // without dumping huge responses into logs.
+            $preview = trim(substr($this->body, 0, 300));
+            LoggerService::logError(
+                'WebsiteConnectionService-http',
+                $msg . ($preview !== '' ? ' bodyPreview=' . $preview : '')
+            );
+
             throw new Exception($msg);
         }
     }
@@ -255,8 +262,11 @@ class WebsiteConnectionService
         // Retry on network errors
         if ($this->curlErrno !== 0) return true;
 
-        // Retry on selected HTTP codes
-        if (in_array($this->httpCode, self::RETRY_HTTP, true)) return true;
+        // Retry (throttle) only on selected server-side codes.
+        // Everything else should stop immediately to avoid hammering providers.
+        if (in_array($this->httpCode, self::RETRY_HTTP, true)) {
+            return true;
+        }
 
         return false;
     }
