@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Repositories;
 
 use App\Services\Database\DatabaseService;
+use InvalidArgumentException;
 
 /**
  * BibleBrainBibleRepository
@@ -13,7 +14,10 @@ use App\Services\Database\DatabaseService;
  */
 class BibleBrainBibleRepository extends BaseRepository
 {
-    public function __construct(DatabaseService $databaseService)
+    /** @var array<int,string> */
+    private const BOOL_INT_FIELDS = ['text', 'audio', 'video', 'bibleBrainReviewed'];
+    
+     public function __construct(DatabaseService $databaseService)
     {
         parent::__construct($databaseService);
     }
@@ -74,7 +78,7 @@ class BibleBrainBibleRepository extends BaseRepository
         if (empty($data)) {
             return;
         }
-
+        $data = $this->normalizeInsertData($data);
         $columns      = array_keys($data);
         $placeholders = array_map(fn ($col) => ':' . $col, $columns);
 
@@ -218,4 +222,77 @@ class BibleBrainBibleRepository extends BaseRepository
             ':dateVerified'=> $date,
         ]) !== null;
     }
+
+    /**
+     * Guard + normalize insert data.
+     *
+     * - Ensures column names are safe identifiers.
+     * - Converts Y/N and common truthy/falsey values to 1/0 for INT-bool fields.
+     * - Converts '' to 0 for INT-bool fields (avoids MySQL strict errors).
+     *
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    private function normalizeInsertData(array $data): array
+    {
+        foreach ($data as $col => $val) {
+            if (!is_string($col) || $col === '') {
+                throw new InvalidArgumentException(
+                    'Insert data contains an invalid column key.'
+                );
+            }
+
+            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $col)) {
+               throw new InvalidArgumentException(
+                    'Unsafe column name: ' . $col
+                );
+            }
+
+            if (in_array($col, self::BOOL_INT_FIELDS, true)) {
+                $data[$col] = $this->toIntBool($col, $val);
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * Convert common boolean-like values to 1/0 for INT columns.
+     *
+     * @param mixed $val
+     */
+    private function toIntBool(string $field, $val): int
+    {
+        if ($val === null || $val === '') {
+            return 0;
+        }
+
+        if (is_bool($val)) {
+            return $val ? 1 : 0;
+        }
+
+        if (is_int($val)) {
+            return $val === 0 ? 0 : 1;
+        }
+
+        if (is_string($val)) {
+            $v = strtoupper(trim($val));
+            if ($v === 'Y' || $v === 'YES' || $v === 'TRUE' || $v === 'T') {
+                return 1;
+            }
+            if ($v === 'N' || $v === 'NO' || $v === 'FALSE' || $v === 'F') {
+                return 0;
+            }
+            if ($v === '1' || $v === '0') {
+                return (int) $v;
+            }
+        }
+
+        throw new InvalidArgumentException(
+            'Invalid value for ' . $field . ': ' . print_r($val, true)
+        );
+    }
+
+
+    
 }

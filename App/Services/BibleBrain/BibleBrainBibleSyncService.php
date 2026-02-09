@@ -84,7 +84,7 @@ class BibleBrainBibleSyncService
     {
         $addedCount = 0;
         $languagesProcessed = 0;
-        $maxLanguages = 1;
+        $maxLanguages = 500;
 
         while ($language = $this->languageRepository
             ->getNextLanguageForBibleBrainSync()
@@ -102,7 +102,7 @@ class BibleBrainBibleSyncService
             if ($languagesProcessed > $maxLanguages) {
                 LoggerService::logInfo(
                     'BibleBrainSync-009',
-                    "Stopping early after {$maxLanguages} language(s)."
+                    "Stopping as directed after {$maxLanguages} language(s)."
                 );
                 break;
             }
@@ -142,7 +142,13 @@ class BibleBrainBibleSyncService
                     // otherwise continue / handle as you already do
                     throw $e;
                 }
-                $entries = $connection->response['data'] ?? [];
+                LoggerService::logInfo(
+                    'BibleBrainSync-012b',[
+                        'connectionResponse'=>$connection->getJson()
+                    ]
+                );
+                $json = $connection->getJson() ?? [];
+                $entries = $json['data'] ?? [];
                 $ms = (int) ((microtime(true) - $t0) * 1000);
 
                 if (!is_array($entries)) {
