@@ -266,7 +266,7 @@ class BibleBrainBibleSyncService
                     'source'                 => 'dbt',
                     'format'                 => $type,
                     'collectionCode'         => $size,
-                    'text'                   => 'Y',
+                    'text'                   => '1',
                     'audio'                  => '',
                     'video'                  => '',
                     'dateVerified'           => date('Y-m-d'),
@@ -394,8 +394,8 @@ class BibleBrainBibleSyncService
     {
         // Accept common BibleBrain size codes.
         // Keep permissive to avoid dropping valid text sets.
-        // Examples seen: NT, OT, C, NTP, OTP, etc.
-        return preg_match('~^(NT|OT|C|NTP|OTP)~', $size) === 1;
+        // Examples seen: NT, OT, C, etc.
+        return preg_match('~^(NT|OT|C)~', $size) === 1;
     }
 
     private function isListArray(array $arr): bool

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Repositories;
 
 use App\Services\Database\DatabaseService;
+use App\Services\LoggerService;
 use InvalidArgumentException;
 
 /**
@@ -14,8 +15,15 @@ use InvalidArgumentException;
  */
 class BibleBrainBibleRepository extends BaseRepository
 {
-    /** @var array<int,string> */
+    /**
+     * Only save records that are full Bible, NT-only, or OT-only.
+     * Everything else (portions/partials/combined codes) is skipped.
+     */
+    private const ALLOWED_COLLECTION_CODES = ['C', 'NT', 'OT'];
+
     private const BOOL_INT_FIELDS = ['text', 'audio', 'video', 'bibleBrainReviewed'];
+
+
     
      public function __construct(DatabaseService $databaseService)
     {
@@ -78,7 +86,24 @@ class BibleBrainBibleRepository extends BaseRepository
         if (empty($data)) {
             return;
         }
+        // Hard guard: skip anything not exactly C/NT/OT.
+        $ccRaw = $data['collectionCode'] ?? null;
+        $cc = is_string($ccRaw) ? strtoupper(trim($ccRaw)) : '';
+        if ($cc === '' || !in_array($cc, self::ALLOWED_COLLECTION_CODES, true)) {
+            LoggerService::logWarning('BibleBrainBibleRepository-skipInsert', [
+                'reason'         => 'collectionCode not allowed',
+                'collectionCode' => $ccRaw,
+                'externalId'     => $data['externalId'] ?? null,
+                'format'         => $data['format'] ?? null,
+                'volumeName'     => $data['volumeName'] ?? null,
+                'languageIso'    => $data['languageCodeIso'] ?? null,
+            ]);
+            return;
+        }
+        $data['collectionCode'] = $cc;
+
         $data = $this->normalizeInsertData($data);
+
         $columns      = array_keys($data);
         $placeholders = array_map(fn ($col) => ':' . $col, $columns);
 
@@ -223,6 +248,7 @@ class BibleBrainBibleRepository extends BaseRepository
         ]) !== null;
     }
 
+
     /**
      * Guard + normalize insert data.
      *
@@ -243,7 +269,7 @@ class BibleBrainBibleRepository extends BaseRepository
             }
 
             if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $col)) {
-               throw new InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'Unsafe column name: ' . $col
                 );
             }
