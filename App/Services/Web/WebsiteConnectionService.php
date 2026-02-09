@@ -148,8 +148,18 @@ class WebsiteConnectionService
             curl_close($ch);
             throw new Exception($msg);
         }
-
+         
         $this->body = (string) $result;
+        $len = strlen($this->body);
+        $preview = substr($this->body, 0, 800);
+        $hash = substr(hash('sha256', $this->body), 0, 16);
+
+        LoggerService::logInfo(
+            'WebsiteConnectionService-body',
+            "len={$len} sha256_16={$hash} preview=" . $preview
+        );
+
+
         $this->httpCode = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $this->contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: null;
         $this->finalUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL) ?: null;

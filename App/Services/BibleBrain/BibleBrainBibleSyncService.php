@@ -35,7 +35,10 @@ class BibleBrainBibleSyncService
     ) {
         $this->repository = $repository;
         $this->languageRepository = $languageRepository;
-        $this->logFile = __DIR__ . '/../../data/cron/last_biblebrain_bible_sync.txt';
+        $root = dirname(__DIR__, 3); 
+        // App/Services/BibleBrain -> App/Services -> App -> (root is one more) 
+        // Depending on your tree you may want dirname(__DIR__, 4)
+        $this->logFile = $root  . '/data/cron/last_biblebrain_bible_sync.txt';
     }
 
     /**
@@ -53,8 +56,18 @@ class BibleBrainBibleSyncService
             );
             return;
         }
+        LoggerService::logInfo(
+            '[BibleBrainSync-020]',
+            'Going to Sync New Bibles"
+            );'
+        );
 
         $this->syncNewBibles();
+        LoggerService::logInfo(
+            '[BibleBrainSync-067]',
+            'Going to Update Last Run Timestamp"
+            );'
+        );
         $this->updateLastRunTimestamp();
 
         LoggerService::logInfo(
@@ -71,6 +84,7 @@ class BibleBrainBibleSyncService
     {
         $addedCount = 0;
         $languagesProcessed = 0;
+        $maxLanguages = 1;
 
         while ($language = $this->languageRepository
             ->getNextLanguageForBibleBrainSync()
@@ -85,6 +99,14 @@ class BibleBrainBibleSyncService
             }
             
             $languagesProcessed++;
+            if ($languagesProcessed > $maxLanguages) {
+                LoggerService::logInfo(
+                    'BibleBrainSync-009',
+                    "Stopping early after {$maxLanguages} language(s)."
+                );
+                break;
+            }
+
             $hl = (string) ($language['languageCodeHL'] ?? '');
             $bbid = (string) ($language['languageCodeBibleBrain'] ?? '');
             // BibleBrain generally uses ISO in lowercase.
@@ -179,8 +201,14 @@ class BibleBrainBibleSyncService
     private function processEntry(array $entry, array $language): int
     {
         $added = 0;
-
+        LoggerService::logInfo('BibleBrainSync-processEntry-1',[
+            'entry'=>  $entry
+        ] );
+    
         $filesets = $this->extractTextFilesetsFromEntry($entry);
+        LoggerService::logInfo('BibleBrainSync-processEntry=2',[
+            'filesets'=>  $filesets
+        ] );
 
         foreach ($filesets as $fs) {
             $id = (string) ($fs['id'] ?? '');
@@ -216,6 +244,10 @@ class BibleBrainBibleSyncService
             }
 
             if (!$this->repository->bibleRecordExists($id)) {
+                LoggerService::logInfo(
+                    'BibleBrainSync-addingBibleRecord',
+                    ['id'=> $id]
+                );
                 $this->repository->insertBibleRecord([
                     'externalId'             => $id,
                     'volumeName'             => $volumeName,
@@ -240,6 +272,11 @@ class BibleBrainBibleSyncService
                 );
                 $added++;
             } else {
+                LoggerService::logInfo(
+                    'BibleBrainSync-updateLanguageFieldsIfMissing',
+                    ['id'=> $id,
+                    'entry'=> $entry]
+                );
                 $this->repository->updateLanguageFieldsIfMissing($id, $entry);
                 LoggerService::logInfo(
                     'BibleBrainSync-104',

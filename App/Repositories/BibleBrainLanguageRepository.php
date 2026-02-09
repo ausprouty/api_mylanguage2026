@@ -117,14 +117,20 @@ class BibleBrainLanguageRepository extends BaseRepository
 
     /**
      * Retrieves the next languageCodeIso needing BibleBrain detail processing.
+     * Will recheck every three months.
      */
     public function getNextLanguageForLanguageDetails(): ?string
     {
-        $query = 'SELECT languageCodeIso 
-                  FROM hl_languages 
-                  WHERE languageCodeBibleBrain IS NULL 
-                    AND checkedBBBibles IS NOT NULL 
-                  LIMIT 1';
+         $query = '
+        SELECT languageCodeIso
+        FROM hl_languages
+        WHERE
+            checkedBBBibles IS NULL
+            OR checkedBBBibles < DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
+        ORDER BY
+            checkedBBBibles ASC
+        LIMIT 1
+    ';
         return $this->databaseService->fetchColumn($query);
     }
 }
