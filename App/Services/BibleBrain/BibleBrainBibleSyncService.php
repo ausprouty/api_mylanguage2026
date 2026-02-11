@@ -84,8 +84,7 @@ class BibleBrainBibleSyncService
     {
         $addedCount = 0;
         $languagesProcessed = 0;
-        $maxLanguages = 500;
-
+        $maxLanguages = 1;
         while ($language = $this->languageRepository
             ->getNextLanguageForBibleBrainSync()
         ) {
@@ -267,8 +266,8 @@ class BibleBrainBibleSyncService
                     'format'                 => $type,
                     'collectionCode'         => $size,
                     'text'                   => '1',
-                    'audio'                  => '',
-                    'video'                  => '',
+                    'audio'                  => '0',
+                    'video'                  => '0',
                     'dateVerified'           => date('Y-m-d'),
                 ]);
 

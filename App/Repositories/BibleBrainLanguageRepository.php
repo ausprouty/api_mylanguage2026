@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\Language\LanguageModel;
 use App\Services\Database\DatabaseService;
+use App\Configuration\Config;
 
 /**
  * Handles BibleBrain-specific interactions with the hl_languages table,
@@ -121,7 +122,10 @@ class BibleBrainLanguageRepository extends BaseRepository
      */
     public function getNextLanguageForLanguageDetails(): ?string
     {
-         $query = '
+        if (Config::get('testLanguage')){
+            return Config::get('logging.testLanguage');
+        }
+        $query = '
         SELECT languageCodeIso
         FROM hl_languages
         WHERE
