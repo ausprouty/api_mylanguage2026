@@ -89,6 +89,8 @@ class BibleBrainBibleSyncService
             ->getNextLanguageForBibleBrainSync()
         ) {
             $iso = (string) ($language['languageCodeIso'] ?? '');
+            //TODO: remove this line
+            $iso = 'en';
             if ($iso === '') {
                   LoggerService::logInfo(
                     'BibleBrainSync-010',
@@ -278,11 +280,11 @@ class BibleBrainBibleSyncService
                 $added++;
             } else {
                 LoggerService::logInfo(
-                    'BibleBrainSync-updateLanguageFieldsIfMissing',
+                    'BibleBrainSync-updateBibleBrainSyncService',
                     ['id'=> $id,
                     'entry'=> $entry]
                 );
-                $this->repository->updateLanguageFieldsIfMissing($id, $entry);
+                $this->repository->markVerifiedByExternalId($id);
                 LoggerService::logInfo(
                     'BibleBrainSync-104',
                     "Existing Record: {$id} ({$type}, {$size})"

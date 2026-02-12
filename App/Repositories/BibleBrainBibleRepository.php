@@ -103,6 +103,9 @@ class BibleBrainBibleRepository extends BaseRepository
         $data['collectionCode'] = $cc;
 
         $data = $this->normalizeInsertData($data);
+        if (!array_key_exists('dateVerified', $data) || $data['dateVerified'] === null) {
+            $data['dateVerified'] = date('Y-m-d');
+        }
 
         $columns      = array_keys($data);
         $placeholders = array_map(fn ($col) => ':' . $col, $columns);
@@ -177,16 +180,13 @@ class BibleBrainBibleRepository extends BaseRepository
                SET languageEnglish        = :languageEnglish,
                    languageName           = :languageAutonym,
                    languageCodeBibleBrain = :languageCodeBibleBrain,
-                   dateVerified           = :dateVerified
-             WHERE externalId = :externalId
-               AND (languageCodeBibleBrain IS NULL)
+               WHERE externalId = :externalId
         ';
 
         $this->databaseService->executeQuery($query, [
             ':languageEnglish'       => $entry['language']     ?? '',
             ':languageAutonym'       => $entry['autonym']      ?? '',
             ':languageCodeBibleBrain'=> $entry['language_id']  ?? '',
-            ':dateVerified'          => date('Y-m-d'),
             ':externalId'            => $externalId,
         ]);
     }
@@ -246,6 +246,18 @@ class BibleBrainBibleRepository extends BaseRepository
             ':externalId'  => $externalId,
             ':dateVerified'=> $date,
         ]) !== null;
+    }
+
+    public function markVerifiedByExternalId(string $externalId): void
+    {
+        $query = '
+            UPDATE bibles
+            SET dateVerified = CURDATE()
+            WHERE externalId = :externalId
+        ';
+        $this->databaseService->executeQuery($query, [
+            ':externalId' => $externalId,
+        ]);
     }
 
 

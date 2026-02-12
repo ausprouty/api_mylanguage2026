@@ -122,8 +122,9 @@ class BibleBrainLanguageRepository extends BaseRepository
      */
     public function getNextLanguageForLanguageDetails(): ?string
     {
-        if (Config::get('testLanguage')){
-            return Config::get('logging.testLanguage');
+        if (Config::get('test_language')){
+            $language['languageCodeIso'] = Config::get('test_language');
+            return $language;
         }
         $query = '
         SELECT languageCodeIso
