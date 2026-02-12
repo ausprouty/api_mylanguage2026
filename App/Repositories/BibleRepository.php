@@ -113,14 +113,14 @@ class BibleRepository extends BaseRepository
                   AND format NOT LIKE :video 
                   AND format != :usx 
                   AND format IS NOT NULL 
-                  AND source != :dbt 
+                  AND source != :bible_brain 
                   ORDER BY volumeName';
         $params = [
             ':code' => $languageCodeHL,
             ':audio' => 'audio%',
             ':video' => 'video%',
             ':usx' => 'text_usx',
-            ':dbt' => 'dbt'
+            ':bible_brain' => 'bible_brain'
         ];
         return $this->databaseService->fetchAll($query, $params);
     }

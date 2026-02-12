@@ -84,13 +84,11 @@ class BibleBrainBibleSyncService
     {
         $addedCount = 0;
         $languagesProcessed = 0;
-        $maxLanguages = 1;
+        $maxLanguages = 5;
         while ($language = $this->languageRepository
             ->getNextLanguageForBibleBrainSync()
         ) {
             $iso = (string) ($language['languageCodeIso'] ?? '');
-            //TODO: remove this line
-            $iso = 'en';
             if ($iso === '') {
                   LoggerService::logInfo(
                     'BibleBrainSync-010',
@@ -264,7 +262,7 @@ class BibleBrainBibleSyncService
                     'languageName'           => (string) ($entry['autonym'] ?? ''),
                     'languageCodeBibleBrain' => (string) ($entry['language_id'] ?? ''),
                     'bibleBrainReviewed'     => (int) ($entry['reviewed'] ?? 0), // 0/1
-                    'source'                 => 'dbt',
+                    'source'                 => 'bible_brain',
                     'format'                 => $type,
                     'collectionCode'         => $size,
                     'text'                   => '1',

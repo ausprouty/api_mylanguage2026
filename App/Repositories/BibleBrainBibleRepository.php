@@ -130,7 +130,7 @@ class BibleBrainBibleRepository extends BaseRepository
               FROM bibles
              WHERE languageCodeIso = :iso
                AND format = :format
-               AND source = \'dbt\'
+               AND source = \'bible_brain\'
                AND volumeName LIKE CONCAT(\'%\', :volumeName, \'%\')
              LIMIT 1
         ';
@@ -160,7 +160,7 @@ class BibleBrainBibleRepository extends BaseRepository
         ';
 
         $params = [
-            ':source'       => 'dbt',
+            ':source'       => 'bible_brain',
             ':formatPrefix' => 'text%',
             ':lastBid'      => $lastBid,
             ':limit'        => $limit,

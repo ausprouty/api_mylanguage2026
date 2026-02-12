@@ -206,7 +206,7 @@ final class BiblePassageService
             'bible_gateway'=> BibleGatewayPassageService::class,
             'youversion'   => YouVersionPassageService::class,
             'word'         => BibleWordPassageService::class,
-            'dbt'          => DbtPassageService::class,
+           // 'dbt'          => DbtPassageService::class,
         ];
 
         $class = $map[$source] ?? null;
