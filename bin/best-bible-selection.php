@@ -2,8 +2,42 @@
 /*
 To run:
 
-cd /home/mylanguagenet/api2.mylanguage.net.au
+cd api2.mylanguage.net.au
 php bin/best-bible-selection.php
+
+
+
+SELECT COUNT(*) AS languages_all_missing_weight
+FROM (
+  SELECT languageCodeHL
+  FROM bibles
+  GROUP BY languageCodeHL
+  HAVING SUM(weight IS NOT NULL) = 0
+) x;
+
+
+SELECT COUNT(*) AS languages_with_any_weight
+FROM (
+  SELECT languageCodeHL
+  FROM bibles
+  GROUP BY languageCodeHL
+  HAVING SUM(weight IS NOT NULL) > 0
+) x;
+
+
+
+SELECT
+  max_weight AS weight,
+  COUNT(*)   AS language_count
+FROM (
+  SELECT languageCodeHL, MAX(weight) AS max_weight
+  FROM bibles
+  WHERE weight IS NOT NULL
+  GROUP BY languageCodeHL
+) t
+WHERE max_weight IN (7, 9)
+GROUP BY max_weight
+ORDER BY max_weight DESC;
 
 */
 

@@ -40,6 +40,12 @@ final class BestBibleSelectionService
                     (int) $selection['ntBibleId'],
                     7
                 );
+            } elseif ($selection['type'] === 'nt_only') {
+                $this->repo->saveSelectionComplete(
+                    $hl,
+                    (int) $selection['bibleId'],
+                    5
+                );
             }
         }
     }
@@ -85,6 +91,15 @@ final class BestBibleSelectionService
                     'ntBibleId' => $pair['nt']['id'],
                 ];
             }
+            
+            $bestNt = $this->bestNtOnly($bb);
+            if ($bestNt) {
+                return [
+                    'type' => 'nt_only',
+                    'bibleId' => $bestNt['id'],
+                ];
+            }
+
         }
 
         // 2) Word
@@ -168,6 +183,25 @@ final class BestBibleSelectionService
         return $candidates[0];
     }
 
+
+    /**
+     * BibleBrain NT-only fallback (no OT available).
+     *
+     * @param array<int,array<string,mixed>> $bb
+     * @return array<string,mixed>|null
+     */
+    private function bestNtOnly(array $bb): ?array
+    {
+        $nts = array_values(array_filter($bb, fn($b) => !empty($b['is_nt'])));
+        if (!$nts) {
+            return null;
+        }
+
+        usort($nts, fn($a, $b) => $this->compare($a, $b));
+        return $nts[0];
+    }
+
+
     /**
      * @param array<int,array<string,mixed>> $bb
      * @return array{ot:array<string,mixed>, nt:array<string,mixed>}|null
@@ -186,6 +220,13 @@ final class BestBibleSelectionService
 
         return ['ot' => $ots[0], 'nt' => $nts[0]];
     }
+
+    
+
+    
+
+
+
 
     private function compare(array $a, array $b): int
     {

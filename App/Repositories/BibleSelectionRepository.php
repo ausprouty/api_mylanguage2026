@@ -10,9 +10,10 @@ use Throwable;
  * BibleSelectionRepository
  *
  * Weight semantics (recommended):
- * - 9 = locked/manual best (script must not change; skip language)
- * - 7 = auto-selected best (script maintains these)
- * - 0 = normal/unselected
+ *  9 = locked/manual best (script must not change; skip language)
+ *  7 = auto-selected best (script maintains these)
+ *  5 = auto-selected NT-only best (script maintains these)
+ *  0 = normal/unselected
  */
 final class BibleSelectionRepository
 {
@@ -95,7 +96,7 @@ final class BibleSelectionRepository
             UPDATE bibles
             SET weight = 0
             WHERE languageCodeHL = :hl
-              AND weight = 7
+              AND weight IN (7, 5)
         ";
 
         $this->db->executeOrFail($sql, [':hl' => $languageCodeHL]);
@@ -103,7 +104,7 @@ final class BibleSelectionRepository
 
     /**
      * Save a single complete selection (or best single) for the language.
-     * This will clear existing auto selections (weight 7) first.
+     * This will clear existing auto selections (weight 7 or 5) first.
      */
     public function saveSelectionComplete(
         string $languageCodeHL,
