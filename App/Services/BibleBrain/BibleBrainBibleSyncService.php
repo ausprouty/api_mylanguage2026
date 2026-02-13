@@ -84,7 +84,7 @@ class BibleBrainBibleSyncService
     {
         $addedCount = 0;
         $languagesProcessed = 0;
-        $maxLanguages = 5;
+        $maxLanguages = 500;
         while ($language = $this->languageRepository
             ->getNextLanguageForBibleBrainSync()
         ) {

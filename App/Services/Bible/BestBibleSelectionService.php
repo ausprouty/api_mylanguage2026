@@ -16,8 +16,10 @@ final class BestBibleSelectionService
         $languages = $this->repo->fetchLanguagesNeedingSelection();
 
         foreach ($languages as $lang) {
-            $hl = $lang['languageCodeHL'];
-
+            $hl = (string) ($lang['languageCodeHL'] ?? '');
+            if ($hl === '') {
+                continue;
+            }
             $bibles = $this->repo->fetchBiblesForLanguage($hl);
             if (!$bibles) {
                 continue;

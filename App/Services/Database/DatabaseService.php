@@ -267,6 +267,47 @@ class DatabaseService
         return ($row === false) ? null : $row;
     }
 
+     
+    /**
+     * Alias for fetchRow() to support repositories that expect fetchOne().
+     * Does not disturb current users.
+     */
+    public function fetchOne(string $query, array $params = []): ?array
+    {
+        return $this->fetchRow($query, $params);
+    }
+
+    /**
+     * Convenience wrapper for executeQuery() that returns a boolean.
+     * Useful when callers do not care about the statement.
+     * Does not disturb current users.
+     */
+    public function execute(string $query, array $params = []): bool
+    {
+        return (bool) $this->executeQuery($query, $params);
+    }
+
+    /**
+     * Execute a query and THROW on failure.
+     *
+     * This is the safest option inside transactions, because executeQuery()
+     * currently logs + returns null (which would otherwise allow commit()).
+     *
+     * @throws \RuntimeException
+     */
+    public function executeOrFail(
+        string $query,
+        array $params = []
+    ): \PDOStatement {
+        $stmt = $this->executeQuery($query, $params);
+        if (!$stmt) {
+            $msg = 'Database query failed (see logs).';
+            throw new \RuntimeException($msg);
+        }
+        return $stmt;
+    }
+
+
     /**
      * Fetches a single scalar value (first column of first row).
      * Returns null on error or if no row/value.
