@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Services\Lessons;
+namespace App\Services\BibleStudy;
 
 use App\Configuration\Config;
 use RuntimeException;
