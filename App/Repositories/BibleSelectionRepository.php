@@ -14,6 +14,36 @@ use Throwable;
  *  7 = auto-selected best (script maintains these)
  *  5 = auto-selected NT-only best (script maintains these)
  *  0 = normal/unselected
+ * 
+ * Show Distribution;
+ * SELECT
+ * CASE
+ *   WHEN max_w = 9 THEN '9'
+ *   WHEN max_w = 7 THEN '7'
+ *   WHEN max_w = 5 THEN '5'
+ *   WHEN max_w = 0 THEN '0'
+ *   WHEN max_w IS NULL THEN 'NULL'
+ *   ELSE CONCAT('OTHER:', max_w)
+ * END AS weight_bucket,
+ * COUNT(*) AS language_count
+* FROM (
+*  SELECT languageCodeHL, MAX(weight) AS max_w
+*  FROM bibles
+*  WHERE languageCodeHL IS NOT NULL
+*    AND languageCodeHL <> ''
+*  GROUP BY languageCodeHL
+* ) t
+* GROUP BY weight_bucket
+* ORDER BY
+*  CASE weight_bucket
+*    WHEN '9' THEN 1
+*    WHEN '7' THEN 2
+*    WHEN '5' THEN 3
+*    WHEN '0' THEN 4
+*    WHEN 'NULL' THEN 5
+*    ELSE 6
+*f  END;
+
  */
 final class BibleSelectionRepository
 {

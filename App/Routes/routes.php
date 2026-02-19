@@ -70,6 +70,14 @@ return function (RouteCollector $r): void {
         }
     );
 
+    // version 2 
+    $r->addGroup($basePath . '/api/v2',
+        function (RouteCollector $g) use ($call) {
+             $g->addRoute('GET', '/jsonLessonContent/${hl}/${studyId}/${lessonId}',
+                $call(\App\Controllers\LessonJsonContentController::class, 'webFetch'));
+        }
+    );
+
     // version 2 Available
     $r->addGroup($basePath . '/api/v2/available',
         function (RouteCollector $g) use ($post) {
