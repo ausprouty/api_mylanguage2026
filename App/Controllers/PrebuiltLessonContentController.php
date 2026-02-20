@@ -5,18 +5,18 @@ namespace App\Controllers;
 
 use App\Http\Concerns\ValidatesArgs;
 use App\Responses\JsonResponse;
-use App\Services\BibleStudy\LessonJsonContentResolver;
+use App\Services\BibleStudy\PrebuiltLessonContentResolver;
 use App\Services\LoggerService;
 use App\Support\i18n\Normalize;
 use Exception;
 
-final class LessonJsonContentController
+final class PrebuiltLessonContentController
 {
     use ValidatesArgs;
 
-    private bool $debugController = false;
+    private bool $debugController = true;
 
-    public function __construct(private LessonJsonContentResolver $resolver) {}
+    public function __construct(private PrebuiltLessonContentResolver $resolver) {}
 
     /**
      * Args:
@@ -32,8 +32,9 @@ final class LessonJsonContentController
             $lesson = $this->arg($args, 'lesson', [$this, 'normId']);
          
             $res = $this->resolver->fetch($lang, $study, $lesson);
+
             if ($this->debugController){
-                LoggerService::logInfoJson('LessonJsonContentController-65', $res['data']['meta']);
+                LoggerService::logInfoJson('PrebuiltLessonContentController-65', $res['data']['meta']);
             }
             JsonResponse::success($res['data'], $headers, 200);
         } catch (Exception $e) {

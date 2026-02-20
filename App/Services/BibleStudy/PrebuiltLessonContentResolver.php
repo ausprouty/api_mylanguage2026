@@ -7,7 +7,7 @@ use App\Configuration\Config;
 use RuntimeException;
 use JsonException;
 
-final class LessonJsonContentResolver
+final class PrebuiltLessonContentResolver
 {
     /**
      * Validates JSON server-side, returns original JSON text unchanged.
