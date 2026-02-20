@@ -12,14 +12,14 @@ final class PrebuiltLessonContentResolver
     /**
      * Validates JSON server-side, returns original JSON text unchanged.
      */
-    public function fetch(string $language, string $study, string $lesson): string
+    public function fetch(string $languageCodeHL, string $study, string $lesson): string
     {
         $base = rtrim(Config::getDir('resources.prebuilt_lesson_content'), '/\\');
 
         $path = $base
             . $study
             . '/'
-            . $language
+            . $languageCodeHL
             . '/'
             . $lesson
             . '.json';

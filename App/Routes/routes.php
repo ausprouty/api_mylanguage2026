@@ -73,7 +73,7 @@ return function (RouteCollector $r): void {
     // version 2 
     $r->addGroup($basePath . '/api/v2',
         function (RouteCollector $g) use ($call) {
-             $g->addRoute('GET', '/prebuiltLessonContent/${hl}/${studyId}/${lessonId}',
+             $g->addRoute('GET', '/prebuiltLessonContent/{languageCodeHL}/{study}/{lesson}',
                 $call(\App\Controllers\PrebuiltLessonContentController::class, 'webFetch'));
         }
     );

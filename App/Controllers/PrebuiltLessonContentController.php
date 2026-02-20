@@ -27,7 +27,7 @@ final class PrebuiltLessonContentController
     public function webFetch(array $args): void
     {
         try {
-            $lang = $this->arg($args, 'languageCodeHL', [$this, 'normId']); 
+            $languageCodeHL = $this->arg($args, 'languageCodeHL', [$this, 'normId']); 
             $study = $this->arg($args, 'study', [$this, 'normId']);
             $lesson = $this->arg($args, 'lesson', [$this, 'normId']);
          
