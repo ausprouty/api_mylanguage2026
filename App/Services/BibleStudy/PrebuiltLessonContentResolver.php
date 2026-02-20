@@ -14,11 +14,10 @@ final class PrebuiltLessonContentResolver
      */
     public function fetch(string $language, string $study, string $lesson): string
     {
-        $base = rtrim(Config::getDir('resources.templates'), '/\\');
+        $base = rtrim(Config::getDir('resources.prebuilt_lesson_content'), '/\\');
 
         $path = $base
-            . '/app/lessonContent/'
-            . $lesson
+            . $study
             . '/'
             . $language
             . '/'
