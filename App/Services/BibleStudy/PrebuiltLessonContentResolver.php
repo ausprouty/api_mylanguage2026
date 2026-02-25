@@ -17,6 +17,7 @@ final class PrebuiltLessonContentResolver
         $base = rtrim(Config::getDir('resources.prebuilt_lesson_content'), '/\\');
 
         $path = $base
+            . '/'
             . $study
             . '/'
             . $languageCodeHL

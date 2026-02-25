@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Http\Concerns\ValidatesArgs;
-use App\Responses\JsonResponse;
+use App\Responses\ResponseBuilder;
 use App\Services\BibleStudy\PrebuiltLessonContentResolver;
 use App\Services\LoggerService;
 use App\Support\i18n\Normalize;
@@ -31,14 +31,15 @@ final class PrebuiltLessonContentController
             $study = $this->arg($args, 'study', [$this, 'normId']);
             $lesson = $this->arg($args, 'lesson', [$this, 'normId']);
          
-            $res = $this->resolver->fetch($lang, $study, $lesson);
-
-            if ($this->debugController){
-                LoggerService::logInfoJson('PrebuiltLessonContentController-65', $res['data']['meta']);
-            }
-            JsonResponse::success($res['data'], $headers, 200);
-        } catch (Exception $e) {
-            JsonResponse::error($e->getMessage());
+            $output = $this->resolver->fetch($languageCodeHL, $study, $lesson);
+            ResponseBuilder::ok()
+                ->withMessage("Lesson content loaded.")
+                ->withData($output)
+                ->json(); // outputs and exits
+        }  catch (Exception $e) {
+            ResponseBuilder::error("Unexpected server error")
+                ->withErrors(['exception' => $e->getMessage()])
+                ->json(); // outputs and exits
         }
     }
 }
