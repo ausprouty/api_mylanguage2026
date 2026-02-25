@@ -70,13 +70,7 @@ return function (RouteCollector $r): void {
         }
     );
 
-    // version 2 
-    $r->addGroup($basePath . '/api/v2',
-        function (RouteCollector $g) use ($call) {
-             $g->addRoute('GET', '/prebuiltLessonContent/{languageCodeHL}/{study}/{lesson}',
-                $call(\App\Controllers\PrebuiltLessonContentController::class, 'webFetch'));
-        }
-    );
+    
 
     // version 2 Available
     $r->addGroup($basePath . '/api/v2/available',
@@ -112,7 +106,7 @@ return function (RouteCollector $r): void {
 
             // GET /api/v2/translate/lessonContent/{languageCodeHL}/{study}/{lesson}?jf=
             $g->addRoute('GET', '/lessonContent/{languageCodeHL}/{study}/{lesson}',
-                $call(\App\Controllers\BibleStudyJsonController::class, 'webFetchLessonContent'));
+                $call(\App\Controllers\LessonJsonController::class, 'webFetchLessonContent'));
         }
     );
  

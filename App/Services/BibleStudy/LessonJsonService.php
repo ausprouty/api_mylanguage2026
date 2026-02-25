@@ -2,7 +2,8 @@
 declare(strict_types=1);
 
 namespace App\Services\BibleStudy;
-
+use App\Configuration\Config; 
+use RuntimeException;
 use App\Services\BibleStudy\BiblePassageJsonService;
 use App\Services\BibleStudy\VideoJsonService;
 use App\Services\LoggerService;

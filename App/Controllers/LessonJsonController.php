@@ -3,19 +3,22 @@
 namespace App\Controllers;
 
 use App\Services\BibleStudy\LessonJsonService;
+use App\Services\BibleStudy\PrebuiltLessonContentResolver;
 use App\Responses\ResponseBuilder;
 use App\Helpers\ControllerValidator;
 use App\Services\LoggerService;
 use Exception;
 
-class BibleStudyJsonController
+class LessonJsonController
 {
     private LessonJsonService $studyService;
+    private PrebuiltLessonContentResolver $prebuiltResolver;
 
-    public function __construct(LessonJsonService $studyService)
+    public function __construct(LessonJsonService $studyService, PrebuiltLessonContentResolver $prebuiltResolver)
     {
         $this->studyService = $studyService;
-    }
+        $this->prebuiltResolver = $prebuiltResolver;
+    }   
 
     public function webFetchLessonContent(array $args): void
     {
@@ -38,11 +41,23 @@ class BibleStudyJsonController
             $study = $validated['study'];
             $lesson = $validated['lesson'];
             $languageCodeHL = $validated['languageCodeHL'];
-            $languageCodeJF = $validated['languageCodeJF'];
+            $languageCodeJF = $validated['languageCodeJF'] ?? null;
             $t3 = microtime(true);
 
-            // Build data blocks
-            $output = $this->studyService->generateLessonJsonObject($study, $lesson, $languageCodeHL, $languageCodeJF);
+            $json = $this->prebuiltResolver->tryFetch($languageCodeHL, $study, (string) $lesson);
+            if ($json !== null) {
+                // If your ResponseBuilder expects an array:
+                $output = json_decode($json, true);
+                $output['meta']['source'] = 'prebuilt';
+            } else {
+                $output = $this->studyService->generateLessonJsonObject(
+                    $study,
+                    $lesson,
+                    $languageCodeHL,
+                    $languageCodeJF
+                );
+                $output['meta']['source'] = 'dbs';
+            }
             $t4 = microtime(true);
             
            LoggerService::logTimingSegments(
