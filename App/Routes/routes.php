@@ -88,6 +88,7 @@ return function (RouteCollector $r): void {
         function (RouteCollector $g) use ($post) {
             $g->addRoute('POST', '/passage',
                 $post(\App\Controllers\BiblePassage\PassageRetrieverController::class));
+      
         }
     );
 

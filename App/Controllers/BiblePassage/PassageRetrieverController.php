@@ -14,7 +14,7 @@ use App\Services\LoggerService;
  *  written Dec 2025 by ChatGPT
  *
  * Expects a body with:
- *  - bid   : integer Bible ID
+ *  - bid   : integer Bible ID  OR languageCodeHL (e.g. "eng00")
  *  - entry : string reference ("John 4:1-7")
  *
  * Always returns a payload with:
@@ -43,6 +43,7 @@ class PassageRetrieverController
 
         $bid   = (int) ($body['bid'] ?? 0);
         $entry = (string) ($body['entry'] ?? '');
+        $hl    = (string) ($body['languageCodeHL'] ?? $body['hl'] ?? '');
 
         // Base response shape: always include bid + entry
         $response = [
@@ -60,26 +61,39 @@ class PassageRetrieverController
             ['bid' => $bid, 'entry' => $entry]
         );
 
-        // If either bid or entry is missing/invalid, return a soft error.
-        if ($bid <= 0 || $entry === '') {
+        // If  entry is missing/invalid, return a soft error.
+        if ( $entry === '') {
             $response['error'] =
-                'Both "bid" (Bible ID) and "entry" (reference) are required.';
+                '"entry" (reference) is required.';
             return $response;
         }
 
         try {
-            // 1) Load Bible metadata
-            $bible = $this->bibleRepository->findBibleByBid($bid);
+           // 1) Load Bible metadata (bid OR langaugeCodeHL)
+           if ($bid > 0) {
+                $bible = $this->bibleRepository->findBibleByBid($bid);
+            } else {
+                if ($hl === '') {
+                    $response['error'] =
+                        'Provide either "bid" or "languageCodeHL".';
+                    return $response;
+                }
+                $bible = $this->bibleRepository
+                    ->findBestBibleByLanguageCodeHL($hl);
+            }
+  
             if ($bible === null) {
                 $response['error'] =
-                    "No Bible found for bid {$bid}.";
+                   $bid > 0
+                    ? "No Bible found for bid {$bid}."
+                    : "No Bible found for languageCodeHL {$hl}.";
                 LoggerService::logError(
                     'PassageRetrieverController.noBible',
                     ['bid' => $bid]
                 );
                 return $response;
             }
-
+            $response['bid'] = (int) $bible->getBid();
             $languageCodeHL = (string) $bible->getLanguageCodeHL();
 
             // 2) Build a PassageReferenceModel from the entry + language
