@@ -8,7 +8,6 @@ use App\Services\LoggerService;
 
 class PostAuthorizationService
 {
-    private const AUTH_LOG = 'C:\\ampp\\htdocs\\api_mylanguage2026\\logs\\post-auth.log';
 
     /**
      * Check the Authorization header against the configured code.
@@ -21,9 +20,10 @@ class PostAuthorizationService
      */
     public static function checkAuthorizationHeader(): bool
     {
-        // Read from config; adjust key as needed for your Config class
         $security = Config::get('security', []);
-        $expected = $security['post_authorization_code'] ?? '';
+        $resolved = self::resolveExpectedCode($security);
+        $expected = $resolved['code'];
+        $expectedKey = $resolved['key'];
 
         // If no code is configured, allow everything (dev mode).
         if ($expected === '') {
@@ -48,19 +48,14 @@ class PostAuthorizationService
                 }
             }
         }
-/* 
-        LoggerService::LogInfo('PostAuthorizationService', [
-            'has_HTTP_AUTHORIZATION' => isset($_SERVER['HTTP_AUTHORIZATION']) ? 1 : 0,
-            'has_REDIRECT_HTTP_AUTHORIZATION' =>
-                isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) ? 1 : 0,
-            'header_len' => strlen($header),
-        ]);
- 
-*/
 
         if ($header === '') {
-            return false;
-        }
+            self::logAuthFailure('missing_header', [
+                'expectedKey' => $expectedKey,
+                'origin' => $_SERVER['HTTP_ORIGIN'] ?? '',
+            ]);
+             return false;
+         }
 
         // Support either:
         //   Authorization: Bearer <code>
@@ -73,44 +68,76 @@ class PostAuthorizationService
         }
 
         if ($token === '') {
-            self::logAuthFailure('empty_token', $expected, $header);
+            self::logAuthFailure('empty_token', [
+                'expectedKey' => $expectedKey,
+                'origin' => $_SERVER['HTTP_ORIGIN'] ?? '',
+                'headerLen' => strlen($header),
+                'bearer' => (stripos($header, 'Bearer ') === 0) ? 1 : 0,
+            ]);
+  
             return false;
         }
 
         // Time-safe comparison
         $ok = hash_equals($expected, $token);
         if (!$ok) {
-            self::logAuthFailure('mismatch', $expected, $header, $token);
+            self::logAuthFailure('mismatch', [
+                'expectedKey' => $expectedKey,
+                'origin' => $_SERVER['HTTP_ORIGIN'] ?? '',
+                'headerLen' => strlen($header),
+                'tokenLen' => strlen($token),
+                'bearer' => (stripos($header, 'Bearer ') === 0) ? 1 : 0,
+            ]);
         }
-        return $ok;
-    }
-    
-    private static function logAuthFailure(
-        string $reason,
-        string $expected,
-        string $header,
-        string $token = ''
-    ): void {
-        // Mask sensitive values but keep enough to debug whitespace/prefix issues
-        $mask = function (string $s): string {
-            $s = (string) $s;
-            $len = strlen($s);
-            if ($len <= 8) return str_repeat('*', $len);
-            return substr($s, 0, 4) . str_repeat('*', $len - 8) . substr($s, -4);
-        };
+         return $ok;
+     }
 
-        $msg = [
-            'ts' => date('c'),
-            'reason' => $reason,
-            'expected_len' => strlen($expected),
-            'expected_mask' => $mask($expected),
-            'header_len' => strlen($header),
-            'header_raw' => $header,
-            'token_len' => strlen($token),
-            'token_mask' => $mask($token),
-            'server_has_HTTP_AUTHORIZATION' => isset($_SERVER['HTTP_AUTHORIZATION']) ? 1 : 0,
-            'server_has_REDIRECT_HTTP_AUTHORIZATION' => isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) ? 1 : 0,
+    
+
+
+    /**
+     * Resolve expected code.
+     * Supports:
+     *  - security.post_authorization_code (single shared code), OR
+     *  - security.post_authorization_codes (map keyed by Origin)
+     *
+     * @return array{code:string,key:string}
+     */
+    private static function resolveExpectedCode(array $security): array
+    {
+        $codes = $security['post_authorization_codes'] ?? null;
+        if (is_array($codes)) {
+            $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+            if ($origin !== '' && isset($codes[$origin])) {
+                return [
+                    'code' => (string) $codes[$origin],
+                    'key'  => 'origin:' . $origin,
+                ];
+            }
+        }
+
+        $single = (string) ($security['post_authorization_code'] ?? '');
+        return [
+            'code' => $single,
+            'key'  => 'single',
         ];
-        @file_put_contents(self::AUTH_LOG, json_encode($msg) . PHP_EOL, FILE_APPEND);
     }
- }
+
+    /**
+     * Log auth failure without leaking secrets.
+     *
+     * @param array<string,mixed> $ctx
+     */
+    private static function logAuthFailure(string $reason, array $ctx = []): void
+    {
+        $ctx = array_merge([
+            'reason' => $reason,
+            'server_has_HTTP_AUTHORIZATION' =>
+                isset($_SERVER['HTTP_AUTHORIZATION']) ? 1 : 0,
+            'server_has_REDIRECT_HTTP_AUTHORIZATION' =>
+                isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) ? 1 : 0,
+        ], $ctx);
+
+        LoggerService::logWarning('security.postAuth', 'POST auth failed', $ctx);
+    }
+}
