@@ -25,6 +25,15 @@ class CORSMiddleware
         $origin = trim($_SERVER['HTTP_ORIGIN'] ?? '');
         $env    = (string) (Config::get('environment') ?? 'prod');
 
+        LoggerService::logWarning('cors.debug', 'cors headers', [
+        'origin'  => $_SERVER['HTTP_ORIGIN'] ?? '',
+        'referer' => $_SERVER['HTTP_REFERER'] ?? '',
+        'host'    => $_SERVER['HTTP_HOST'] ?? '',
+        'method'  => $_SERVER['REQUEST_METHOD'] ?? '',
+        'uri'     => $_SERVER['REQUEST_URI'] ?? '',
+        ]);
+
+
         // Always advertise Vary so caches/CDNs key properly
         header(
             'Vary: Origin, Access-Control-Request-Method, ' .
@@ -82,10 +91,18 @@ class CORSMiddleware
             Config::get('cors.allowed_methods') ??
             ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
         );
-        $allowHeaders = $this->headerList(
+       $allowHeadersArr = (array) (
             Config::get('cors.allowed_headers') ??
-            ['Content-Type', 'Authorization', 'X-Requested-With']
+            [
+                'Content-Type',
+                'Authorization',
+                'X-Requested-With',
+                // Fixes browser preflight failures when axios/fetch sends these
+                'Cache-Control',
+                'Pragma',
+            ]
         );
+        $allowHeaders = $this->headerList($allowHeadersArr);
         $exposeHeaders = $this->headerList(
             Config::get('cors.exposed_headers') ?? []
         );
@@ -104,9 +121,17 @@ class CORSMiddleware
                 $_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'] ?? '';
 
             header('Access-Control-Allow-Methods: ' . $allowMethods, true);
-            header('Access-Control-Allow-Headers: ' . (
-                $reqHdrs !== '' ? $reqHdrs : $allowHeaders
-            ), true);
+            // IMPORTANT:
+            // Do not blindly echo the browser's requested headers back.
+            // Instead, intersect with our allow-list so we never "allow" more
+            // than intended, but we still satisfy legitimate requests like
+            // "cache-control" used by some clients.
+            $requested = $this->splitHeaderNames($reqHdrs);
+            $allowed   = $this->splitHeaderNames($allowHeaders);
+            $final     = $requested ? $this->intersectHeaderNames($requested, $allowed)
+                                    : $allowed;
+            header('Access-Control-Allow-Headers: ' . implode(', ', $final), true);
+   
             header('Access-Control-Max-Age: 86400', true);
 
             http_response_code(204);
@@ -241,5 +266,51 @@ class CORSMiddleware
         $arr = array_map(fn($s) => trim((string) $s), $arr);
         $arr = array_filter($arr, fn($s) => $s !== '');
         return implode(', ', $arr);
+    }
+    
+     /**
+     * Parse a comma-separated header list into normalized header names.
+     * Returns e.g. ["content-type","authorization"].
+     */
+    private function splitHeaderNames(string $csv): array
+    {
+        $csv = trim($csv);
+        if ($csv === '') {
+            return [];
+        }
+        $parts = array_map('trim', explode(',', $csv));
+        $parts = array_filter($parts, fn($s) => $s !== '');
+        $parts = array_map(fn($s) => strtolower($s), $parts);
+        // de-dupe, keep order
+        $out = [];
+        foreach ($parts as $p) {
+            if (!in_array($p, $out, true)) {
+                $out[] = $p;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Intersect requested headers with allowed headers (case-insensitive).
+     * Returns an array of header names in canonical "Title-Case" form.
+     */
+    private function intersectHeaderNames(array $requested, array $allowed): array
+    {
+        $allowedSet = array_flip($allowed);
+        $out = [];
+        foreach ($requested as $r) {
+            if (isset($allowedSet[$r])) {
+                // Canonical-ish casing for readability in responses
+                $out[] = implode('-', array_map('ucfirst', explode('-', $r)));
+            }
+        }
+        // If nothing matched, fall back to full allowed list (canonicalized)
+        if (!$out) {
+            foreach ($allowed as $a) {
+                $out[] = implode('-', array_map('ucfirst', explode('-', $a)));
+            }
+        }
+        return $out;
     }
 }

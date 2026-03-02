@@ -80,13 +80,20 @@ class PostAuthorizationService
 
         // Time-safe comparison
         $ok = hash_equals($expected, $token);
+        LoggerService::logWarning('security.postAuth', 'POST auth check', [
+            'expected' => $expected,
+            'token' => $token,
+
+        ]);
         if (!$ok) {
-            self::logAuthFailure('mismatch', [
+           self::logAuthFailure('mismatch', [
                 'expectedKey' => $expectedKey,
                 'origin' => $_SERVER['HTTP_ORIGIN'] ?? '',
-                'headerLen' => strlen($header),
-                'tokenLen' => strlen($token),
                 'bearer' => (stripos($header, 'Bearer ') === 0) ? 1 : 0,
+                'tokenLen' => strlen($token),
+                'expectedLen' => strlen($expected),
+                'tokenSha8' => substr(hash('sha256', $token), 0, 8),
+                'expectedSha8' => substr(hash('sha256', $expected), 0, 8),
             ]);
         }
          return $ok;
