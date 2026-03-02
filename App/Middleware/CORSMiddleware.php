@@ -91,18 +91,40 @@ class CORSMiddleware
             Config::get('cors.allowed_methods') ??
             ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
         );
-       $allowHeadersArr = (array) (
-            Config::get('cors.allowed_headers') ??
-            [
-                'Content-Type',
-                'Authorization',
-                'X-Requested-With',
-                // Fixes browser preflight failures when axios/fetch sends these
-                'Cache-Control',
-                'Pragma',
-            ]
-        );
-        $allowHeaders = $this->headerList($allowHeadersArr);
+
+        // IMPORTANT:
+        // Browsers (and axios/fetch) commonly include cache-control/pragma/if-modified-since
+        // and custom request ids. If config provides cors.allowed_headers, we MERGE rather
+        // than replace, otherwise preflight will succeed but the browser will block.
+        $baseAllowedHeaders = [
+            'Content-Type',
+            'Authorization',
+            'X-Requested-With',
+            'X-Request-Id',
+            'Cache-Control',
+            'Pragma',
+           'If-Modified-Since'
+        ];
+
+        $cfg = Config::get('cors.allowed_headers');
+        $cfgArr = is_array($cfg) ? $cfg : ($cfg ? [$cfg] : []);
+
+        $merged = array_merge($baseAllowedHeaders, $cfgArr);
+        // de-dupe, keep order
+        $uniq = [];
+        foreach ($merged as $h) {
+            $h = trim((string) $h);   
+            if ($h === '') {
+                continue;
+            }
+            $k = strtolower($h);
+            if (!isset($uniq[$k])) {
+                $uniq[$k] = $h;
+            }
+        }
+        $allowHeaders = $this->headerList(array_values($uniq));
+  
+   
         $exposeHeaders = $this->headerList(
             Config::get('cors.exposed_headers') ?? []
         );
