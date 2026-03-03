@@ -23,7 +23,7 @@ use App\Services\LoggerService;
  *  - text  (may be "")
  *  - url   (may be "")
  *  - ref   (may be "")
- *  - error ("" on success, message on error)
+ *  - error (ONLY present on error)
  */
 class PassageRetrieverController
 {

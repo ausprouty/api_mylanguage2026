@@ -5,6 +5,27 @@ namespace App\Middleware;
 use App\Configuration\Config;
 use App\Services\LoggerService;
 
+
+/**
+ * IMPORTANT – READ BEFORE DEBUGGING CORS
+ *
+ * This project uses Apache (.htaccess) to handle CORS preflight (OPTIONS)
+ * and to emit Access-Control-* headers before requests reach PHP.
+ *
+ * That means:
+ *   - OPTIONS requests may NEVER reach this middleware.
+ *   - Access-Control-Allow-Headers seen in curl/browser may come from Apache,
+ *     not from this class.
+ *
+ * If CORS behaviour does not match what you see here:
+ *   1. Check the .htaccess file in the API root.
+ *   2. Look for "Header always set Access-Control-*" directives.
+ *   3. Confirm Apache is not short-circuiting OPTIONS before PHP.
+ *
+ * Do not assume this middleware controls preflight unless .htaccess
+ * has been updated accordingly.
+ */
+
 class CORSMiddleware
 {
     /**
@@ -109,7 +130,10 @@ class CORSMiddleware
         $cfg = Config::get('cors.allowed_headers');
         $cfgArr = is_array($cfg) ? $cfg : ($cfg ? [$cfg] : []);
 
+        // Merge config headers with the base set so we never accidentally
+        // drop common browser/axios headers (cache-control, pragma, etc.).
         $merged = array_merge($baseAllowedHeaders, $cfgArr);
+        $merged = array_values(array_unique(array_map('trim', $merged)));
         // de-dupe, keep order
         $uniq = [];
         foreach ($merged as $h) {
@@ -123,6 +147,9 @@ class CORSMiddleware
             }
         }
         $allowHeaders = $this->headerList(array_values($uniq));
+        LoggerService::logWarning('cors.debug', 'cors headers', [
+            'allowHeaders'  => $allowHeaders,
+        ]);
   
    
         $exposeHeaders = $this->headerList(
@@ -131,14 +158,16 @@ class CORSMiddleware
 
         // Set CORS headers for allowed origin
         header('Access-Control-Allow-Origin: ' . $origin, true);
-        header('Access-Control-Allow-Credentials: true', true);
+        $allowCreds = (bool) (Config::get('cors.allow_credentials') ?? false);
+        if ($allowCreds) {
+            header('Access-Control-Allow-Credentials: true', true);
+        }
 
         if ($exposeHeaders !== '') {
             header('Access-Control-Expose-Headers: ' . $exposeHeaders, true);
         }
 
         if ($method === 'OPTIONS') {
-            $reqMethod = $_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'] ?? '';
             $reqHdrs   =
                 $_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'] ?? '';
 
@@ -152,6 +181,11 @@ class CORSMiddleware
             $allowed   = $this->splitHeaderNames($allowHeaders);
             $final     = $requested ? $this->intersectHeaderNames($requested, $allowed)
                                     : $allowed;
+            LoggerService::logWarning('cors.debug', 'cors headers', [
+                'requestedHeaders' => $requested,
+                'allowedHeaders'   => $allowed,
+                'finalHeaders'     => $final,
+            ]);
             header('Access-Control-Allow-Headers: ' . implode(', ', $final), true);
    
             header('Access-Control-Max-Age: 86400', true);
