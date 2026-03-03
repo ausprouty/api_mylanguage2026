@@ -80,11 +80,6 @@ class PostAuthorizationService
 
         // Time-safe comparison
         $ok = hash_equals($expected, $token);
-        LoggerService::logWarning('security.postAuth', 'POST auth check', [
-            'expected' => $expected,
-            'token' => $token,
-
-        ]);
         if (!$ok) {
            self::logAuthFailure('mismatch', [
                 'expectedKey' => $expectedKey,

@@ -46,13 +46,7 @@ class CORSMiddleware
         $origin = trim($_SERVER['HTTP_ORIGIN'] ?? '');
         $env    = (string) (Config::get('environment') ?? 'prod');
 
-        LoggerService::logWarning('cors.debug', 'cors headers', [
-        'origin'  => $_SERVER['HTTP_ORIGIN'] ?? '',
-        'referer' => $_SERVER['HTTP_REFERER'] ?? '',
-        'host'    => $_SERVER['HTTP_HOST'] ?? '',
-        'method'  => $_SERVER['REQUEST_METHOD'] ?? '',
-        'uri'     => $_SERVER['REQUEST_URI'] ?? '',
-        ]);
+      
 
 
         // Always advertise Vary so caches/CDNs key properly
@@ -72,10 +66,6 @@ class CORSMiddleware
 
         if ($origin === '') {
             if ($needsCors) {
-                LoggerService::logWarning(
-                    'CORSMiddleware-missing-origin',
-                    ['method' => $method, 'path' => $path]
-                );
                 if ($method === 'OPTIONS') {
                     // Preflight with no Origin is malformed
                     http_response_code(400);
@@ -147,9 +137,7 @@ class CORSMiddleware
             }
         }
         $allowHeaders = $this->headerList(array_values($uniq));
-        LoggerService::logWarning('cors.debug', 'cors headers', [
-            'allowHeaders'  => $allowHeaders,
-        ]);
+       
   
    
         $exposeHeaders = $this->headerList(
@@ -181,11 +169,7 @@ class CORSMiddleware
             $allowed   = $this->splitHeaderNames($allowHeaders);
             $final     = $requested ? $this->intersectHeaderNames($requested, $allowed)
                                     : $allowed;
-            LoggerService::logWarning('cors.debug', 'cors headers', [
-                'requestedHeaders' => $requested,
-                'allowedHeaders'   => $allowed,
-                'finalHeaders'     => $final,
-            ]);
+         
             header('Access-Control-Allow-Headers: ' . implode(', ', $final), true);
    
             header('Access-Control-Max-Age: 86400', true);
