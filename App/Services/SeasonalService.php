@@ -28,21 +28,25 @@ final class SeasonalService
         }
 
         $lang = $this->normalizeLang($languageCodeGoogle);
+        LoggerService::logInfo('SeasonalService', [
+            'site' => $site,
+            'language' => $lang
+        ]);
 
         $collection = $this->loadSiteCollection($site);
-        //LoggerService::logInfo('SeasonalService', ['collection'=>$collection]);
+        LoggerService::logInfo('SeasonalService', ['collection'=>$collection]);
         if (!$collection) {
             return null;
         }
 
         $seasons = $collection['seasonalGreetings'] ?? null;
-        //LoggerService::logInfo('SeasonalService', ['seasons'=>$seasons]);
+        LoggerService::logInfo('SeasonalService', ['seasons'=>$seasons]);
         if (!is_array($seasons) || count($seasons) === 0) {
             return null;
         }
 
         $today = new DateTimeImmutable('now', $this->tz);
-        //LoggerService::logInfo('SeasonalService', ['today'=>$today]);
+        LoggerService::logInfo('SeasonalService', ['today'=>$today]);
 
         $active = [];
         foreach ($seasons as $s) {

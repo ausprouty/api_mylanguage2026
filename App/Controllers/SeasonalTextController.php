@@ -34,7 +34,10 @@ final class SeasonalTextController
         $lang = isset($args['languageCodeGoogle'])
             ? (string) $args['languageCodeGoogle']
             : 'en';
-
+         LoggerService::logInfo('SeasonalTextController', [
+            'site' => $site,
+            'language' => $lang
+        ]);
         $site = $this->normalizeSite($site);
         if ($site === '') {
             return new JsonResponse(
@@ -44,6 +47,7 @@ final class SeasonalTextController
         }
 
         $lang = $this->normalizeGoogleLang($lang);
+         LoggerService::logInfo('SeasonalTextController', ['lang'=> $lang]);
 
         // 30 days cache as agreed (frontend also checks date window).
         header('Cache-Control: public, max-age=2592000');
@@ -52,7 +56,7 @@ final class SeasonalTextController
             $site,
             $lang
         );
-        LoggerService::logInfo('StudyTextController', ['seasonal'=> $seasonal]);
+        LoggerService::logInfo('SeasonalTextController', ['seasonal'=> $seasonal]);
 
         return JsonResponse::success(['seasonal' => $seasonal]);
     }
