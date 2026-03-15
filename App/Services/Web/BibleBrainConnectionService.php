@@ -79,7 +79,8 @@ final class BibleBrainConnectionService extends WebsiteConnectionService
         if (strpos($endpoint, '/api/') !== 0) {
             throw new \InvalidArgumentException(
                 'BibleBrain endpoint must start with "/api/". ' .
-                'Example: "/api/bibles"'
+                'Example: "/api/bibles". ' .
+                'Provided endpoint: "' . $endpoint . '".'
             );
         }
         // Always set required params (do not let caller override them).

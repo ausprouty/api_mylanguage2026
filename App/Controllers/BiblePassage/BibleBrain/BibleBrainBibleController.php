@@ -32,7 +32,7 @@ class BibleBrainBibleController
 
     public function getFormatTypes()
     {
-        $url = '/bibles/filesets/media/types';
+        $url = '/api/bibles/filesets/media/types';
         $formatTypes = $this->bibleBrainConnectionFactory->createModelForEndpoint($url);
         $this->response = $formatTypes->response;
         return $formatTypes->response;
@@ -40,7 +40,7 @@ class BibleBrainBibleController
 
     public function getDefaultBible($languageCodeIso)
     {
-        $url = '/bibles/defaults/types?language_code=' . $languageCodeIso;
+        $url = '/api/bibles/defaults/types?language_code=' . $languageCodeIso;
         $bible = $this->bibleBrainConnectionFactory->createModelForEndpoint($url);
         $this->response = $bible->response;
     }

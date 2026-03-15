@@ -156,6 +156,10 @@ final class SeasonalService
         array $season,
         DateTimeImmutable $today
     ): bool {
+        LoggerService::logInfo('SeasonalService', [
+            'season' => $season,
+            'today' => $today
+        ]);
         $startRaw = isset($season['starts']) ? (string) $season['starts'] : '';
         $endRaw = isset($season['ends']) ? (string) $season['ends'] : '';
         if ($startRaw === '' || $endRaw === '') {
@@ -178,10 +182,10 @@ final class SeasonalService
         }
 
         $active = ($today >= $start) && ($today <= $end);
-       // LoggerService::logInfo('SeasonalService', [
-        //    'startRaw' => $startRaw,
-        //    'endRaw' => $endRaw,
-        //   'active' => $active]);
+        LoggerService::logInfo('SeasonalService', [
+            'startRaw' => $startRaw,
+            'endRaw' => $endRaw,
+           'active' => $active]);
         return $active;
     }
 
