@@ -53,12 +53,12 @@ class BibleBrainPassageService extends AbstractBiblePassageService
     }
 
     /**
-     * Example API: bibles/filesets/:fileset_id/:book/:chapter?verse_start=X&verse_end=Y
+     * Example API: /api/bibles/filesets/:fileset_id/:book/:chapter?verse_start=X&verse_end=Y
      */
     public function getWebPage(): array
     {
         $endpoint = sprintf(
-            'bibles/filesets/%s/%s/%d',
+            '/api/bibles/filesets/%s/%s/%d',
             $this->bible->getExternalId(),
             $this->passageReference->getBookID(),
             $this->passageReference->getChapterStart()

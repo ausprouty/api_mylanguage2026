@@ -54,6 +54,27 @@ class BibleRepository extends BaseRepository
             BibleModel::class
         );
     }
+    public function findBestBibleByLanguageCodeGoogle(
+        string $languageCodeGoogle
+    ): ?BibleModel {
+        $sql = '
+            SELECT b.*
+            FROM bibles AS b
+            WHERE b.languageCodeGoogle = :google
+            ORDER BY b.weight DESC
+            LIMIT 1
+        ';
+
+        $params = [
+            ':google' => $languageCodeGoogle,
+        ];
+
+        return $this->fetchAndPopulateModel(
+            $sql,
+            $params,
+            BibleModel::class
+        );
+    }
 
     public function findBestDbsBibleByLanguageCodeHL(
         string $languageCodeHL,

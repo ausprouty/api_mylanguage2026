@@ -44,6 +44,7 @@ class PassageRetrieverController
         $bid   = (int) ($body['bid'] ?? 0);
         $entry = (string) ($body['entry'] ?? '');
         $hl    = (string) ($body['languageCodeHL'] ?? $body['hl'] ?? '');
+        $google   =  (string) ($body['languageCodeGoogle'] ?? $body['google'] ?? '');
 
         // Base response shape: always include bid + entry
         $response = [
@@ -73,13 +74,19 @@ class PassageRetrieverController
            if ($bid > 0) {
                 $bible = $this->bibleRepository->findBibleByBid($bid);
             } else {
-                if ($hl === '') {
+                if ($hl === '' & $google === '') {
                     $response['error'] =
-                        'Provide either "bid" or "languageCodeHL".';
+                        'Provide either "bid" or "languageCodeHL" or "languageCodeGoogle".';
                     return $response;
                 }
-                $bible = $this->bibleRepository
-                    ->findBestBibleByLanguageCodeHL($hl);
+                if ($hl){
+                    $bible = $this->bibleRepository
+                        ->findBestBibleByLanguageCodeHL($hl);
+                }
+                elseif ($google){
+                    $bible = $this->bibleRepository
+                        ->findBestBibleByLanguageCodeGoogle($google);
+                }
             }
   
             if ($bible === null) {

@@ -64,8 +64,8 @@ class BibleWordPassageService extends AbstractBiblePassageService
             $endpoint = $this->bible->getExternalId()
                 . '/' . $this->formatChapterPage() . '.htm';
 
-            // ✅ use factory (autoFetch=true, salvageJson=false for HTML pages)
-            $conn = $this->wordConnectionService->fromPath($endpoint, autoFetch: true, salvageJson: false);
+            // ✅ use factory ( salvageJson=false for HTML pages)
+            $conn = $this->wordConnectionService->fromPath($endpoint,  salvageJson: false);
             $body = $conn->getBody();
 
             if ($body === '') {
@@ -149,20 +149,49 @@ class BibleWordPassageService extends AbstractBiblePassageService
     private function selectVerses(string $page): string
     {
         $page = str_replace(
-            ['<!--span class="verse"', '<p>', '</p>', '<br/>', '<br />'],
-            ['<span class="verse"',   '',    '',     '<br>',  '<br>'],
+            [
+                '<!--span class="verse"',
+                '</span-->',
+                '<p>',
+                '</p>',
+                '<br/>',
+                '<br />'
+            ],
+            [
+                '<span class="verse"',
+                '</span>',
+                '',
+                '',
+                '<br>',
+                '<br>'
+            ],
             $page
         );
+        $page = preg_replace('/<span class="dimver(?:se)?">.*?<\/span>/us', '', $page);
+        $page = preg_replace('/<sup>\d+<\/sup>/u', '', $page);
 
         $vStart = (int) $this->passageReference->getVerseStart();
         $vEnd   = (int) $this->passageReference->getVerseEnd();
+
+        LoggerService::logInfo('BibleWordPassageService-range', [
+            'book' => $this->passageReference->getBookNumber(),
+            'chapterStart' => $this->passageReference->getChapterStart(),
+            'verseStart' => $vStart,
+            'verseEnd' => $vEnd,
+            'requestedReference' => method_exists(
+                $this->passageReference,
+                'getEntry'
+            ) ? $this->passageReference->getEntry() : null,
+        ]);
+
         $range  = range($vStart, $vEnd);
 
         $out = '';
         foreach (explode('<br>', $page) as $line) {
             $line = trim($line);
-            if ($line === '') continue;
-
+            if ($line === '') continue; 
+            // DEBUG: log the raw verse line
+            LoggerService::logInfo('BibleWordPassageService-rawline', $line);
             $n = $this->extractVerseNumber($line);
             if ($n !== 0 && in_array($n, $range, true)) {
                 $out .= $this->formatVerseLine($n, $line);
@@ -173,18 +202,42 @@ class BibleWordPassageService extends AbstractBiblePassageService
 
     private function formatVerseLine(int $verseNum, string $line): string
     {
-        $lastSpan = strripos($line, '</span>');
-        $verseText = $lastSpan !== false ? substr($line, $lastSpan + 7) : $line;
+        // Remove leading chapter markers sometimes inserted by WordProject
+        $line = preg_replace('/^\s*<sup>\d+<\/sup>\s*/u', '', $line);
+
+        $line = preg_replace(
+            '/^\s*<span class="dimver(?:se)?">\s*.*?<\/span>\s*/u',
+            '',
+            $line
+        );
+
+        // Remove anything before and including the verse marker itself
+        $verseText = preg_replace(
+            '/^.*?<span class="verse"[^>]*id="\d+"[^>]*>\s*\d+\s*<\/span>\s*/us',
+            '',
+            $line
+        );
+
+        if ($verseText === null) {
+            $verseText = $line;
+        }
+
         return '<p><sup>' . $verseNum . '</sup>' . $verseText . "</p>\n";
     }
 
     private function extractVerseNumber(string $line): int
     {
-        $end = strripos($line, '</span>');
-        if ($end === false) return 0;
-        $start = strrpos(substr($line, 0, $end), '>');
-        if ($start === false) return 0;
-        return (int) trim(substr($line, $start + 1, $end - $start - 1));
+        if (
+            preg_match(
+                '/<span class="verse"[^>]*id="\d+"[^>]*>\s*(\d+)\s*<\/span>/u',
+                $line,
+                $m
+            )
+        ) {
+            return (int) $m[1];
+        }
+
+        return 0;
     }
 
     public function getReferenceLocalLanguage(): string
