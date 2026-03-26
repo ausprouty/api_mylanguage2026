@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Services\BibleStudy;
@@ -26,28 +27,28 @@ final class TextBundleResolver
         string $languageCodeHL,
         ?string $variant = null
     ): array {
-        $variant = $variant ?? 'default';
-        $ver = $this->templates->version($kind, $subject);
+        $normVariant = \App\Support\i18n\Normalize::normalizeVariant($variant);
+        $hasVariant = $normVariant !== 'default';
 
-        $tplKey = $this->tplKey($kind, $subject, $ver);
+        $ver = $this->templates->version($kind, $subject, $normVariant);
+        $tplKey = $this->tplKey($kind, $subject, $normVariant, $ver);
         $base = $this->cache->get($tplKey);
-        
 
         if (!is_array($base)) {
-            $base = $this->templates->get($kind, $subject);
+            $base = $this->templates->get($kind, $subject, $normVariant);
             $this->cache->set($tplKey, $base);
         }
 
-        $isBaseLang  = ($languageCodeHL === $this->translator->baseLanguage());
+        $isBaseLang = ($languageCodeHL === $this->translator->baseLanguage());
+
         LoggerService::logDebugI18n('TBR.base', [
-            'method'   => __METHOD__ ,
-            'function' => __FUNCTION__ ,
-            'line'     => __LINE__ ,
-            'baseLanguage'   => $this->translator->baseLanguage(),
+            'method' => __METHOD__,
+            'function' => __FUNCTION__,
+            'line' => __LINE__,
+            'baseLanguage' => $this->translator->baseLanguage(),
+            'normVariant' => $normVariant,
+            'hasVariant' => $hasVariant,
         ]);
-        $variant = \App\Support\i18n\Normalize::normalizeVariant($variant);
-        $hasVariant  = $variant !== 'default';
-        $normVariant = $hasVariant ? $variant : 'default';
 
         // Map HTTP/template tuple → DB resource tuple expected by i18n tables
         // DB: i18n_resources(type, subject, variant)
@@ -55,7 +56,7 @@ final class TextBundleResolver
         //  (1) type='interface', subject='app',  variant='wsu'
         //  (2) type='siteContent', subject='app',  variant='wsu'
         //  (3) type='commonContent', subject='hope', variant='wsu'
-        if ($kind === 'interface'||  $kind === 'siteContent') {
+        if ($kind === 'interface' ||  $kind === 'siteContent') {
             $resourceSubject = 'app';           // DB resource subject
             $resourceVariant = $subject;        // site code, e.g. 'wsu'
             $clientCode      = $subject;        // i18n_clients.clientCode, e.g. 'wsu'
@@ -81,8 +82,8 @@ final class TextBundleResolver
             // Client identity by code (translator will resolve to clientId)
             'clientCode'      => $clientCode,
         ];
-     
-        
+
+
         LoggerService::logDebugI18n('TBR.ctx', [
             // Decision summary (what we were asked for, and what we decided)
             'kind'       => $kind,
@@ -107,15 +108,15 @@ final class TextBundleResolver
             // DB lookup context (authoritative tuple)
             'ctx'        => $ctx,
         ]);
-        
+
 
         // Base-language fast-path, but seed stringIds so i18n_strings is populated
-        if ($isBaseLang && !$hasVariant) {
+        if ($isBaseLang) {
             try {
                 $this->translator->translateBundle(
                     $base,
                     $languageCodeHL,
-                    'default',
+                    $normVariant,
                     $ctx
                 );
             } catch (\Throwable $e) {
@@ -168,20 +169,20 @@ final class TextBundleResolver
     private function tplKey(
         string $kind,
         string $subject,
+        string $variant,
         string $ver
     ): string {
-        return "tpl:{$kind}:{$subject}:{$ver}";
+        return "tpl:{$kind}:{$subject}:{$variant}:{$ver}";
     }
 
     private function trKey(
         string $kind,
         string $subject,
         string $lang,
-        ?string $variant,
+        string $variant,
         string $ver
     ): string {
-        $v = $variant ?: 'default';
-        return "tr:{$kind}:{$subject}:{$lang}:{$v}:{$ver}";
+        return "tr:{$kind}:{$subject}:{$lang}:{$variant}:{$ver}";
     }
 
     private function etag(array $payload, string $ver): string

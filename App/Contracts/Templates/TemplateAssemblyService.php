@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Contracts\Templates;
@@ -8,13 +9,15 @@ namespace App\Contracts\Templates;
  */
 interface TemplateAssemblyService
 {
-    /**
-     * @return array<string,mixed>
-     */
-    public function get(string $kind, string $subject): array;
+    public function get(
+        string $kind,
+        string $subject,
+        string $variant
+    ): array;
 
-    /**
-     * Monotonic content version for cache/ETag.
-     */
-    public function version(string $kind, string $subject): string;
+    public function version(
+        string $kind,
+        string $subject,
+        string $variant
+    ): string;
 }

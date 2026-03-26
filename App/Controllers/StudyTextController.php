@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Controllers;
@@ -16,7 +17,7 @@ final class StudyTextController
 
     private const KINDS = [
         'common'    => 'commonContent',
-        'commoncontent' =>'commonContent',
+        'commoncontent' => 'commonContent',
         'sitecontent' => 'siteContent',
         'interface' => 'interface',
     ];
@@ -29,15 +30,19 @@ final class StudyTextController
      * - kind: interface | site |common
      * - subject: site or study
      * - languageCodeHL
-     * - variant (optional)
+     * - variant or var (optional)  
      */
     public function webFetch(array $args): void
     {
         try {
             $kind = $this->arg($args, 'kind', [$this, 'normId']);
             $subj = $this->arg($args, 'subject', [$this, 'normId']);
-            $lang = $this->arg($args, 'languageCodeHL', [$this, 'normId']); 
-            $var  = Normalize::normalizeVariant($this->arg($args, 'variant'));
+            $lang = $this->arg($args, 'languageCodeHL', [$this, 'normId']);
+
+            $rawVar = $_GET['var'] ?? $_GET['variant'] ?? null;
+            $var = Normalize::normalizeVariant($rawVar);
+
+
 
             if (!isset(self::KINDS[$kind])) {
                 JsonResponse::error('Invalid kind. Use: common | interface');
@@ -45,6 +50,16 @@ final class StudyTextController
             }
 
             $mapped = self::KINDS[$kind];
+
+            LoggerService::logInfoJson('StudyTextController.variant-debug', [
+                'args' => $args,
+                'get' => $_GET,
+                'rawVar' => $rawVar,
+                'normalizedVar' => $var,
+                'mapped' => $mapped,
+                'subject' => $subj,
+                'lang' => $lang,
+            ]);
             $res = $this->resolver->fetch($mapped, $subj, $lang, $var);
 
             // Prepare headers (ETag MUST be quoted)
@@ -63,7 +78,7 @@ final class StudyTextController
                     return;
                 }
             }
-            if ($this->debugController){
+            if ($this->debugController) {
                 LoggerService::logInfoJson('StudyTextController-65', $res['data']['meta']);
             }
             JsonResponse::success($res['data'], $headers, 200);

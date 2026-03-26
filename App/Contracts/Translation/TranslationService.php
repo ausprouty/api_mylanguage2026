@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Contracts\Translation;
@@ -15,7 +16,7 @@ interface TranslationService
     public function translateBundle(
         array $bundle,
         string $languageCodeHL,
-        ?string $variant,
+        string $variant,
         array $ctx = []
     ): array;
 

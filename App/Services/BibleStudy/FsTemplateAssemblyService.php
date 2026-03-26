@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Services\BibleStudy;
@@ -22,7 +23,7 @@ final class FsTemplateAssemblyService implements TemplateAssemblyService
      * Load, overlay (root → key → variant), inject schema.
      * Overlay is **destructive**: new file replaces keys entirely; null/"" deletes.
      */
-    public function get(string $kind, string $subject, ?string $variant = null): array
+    public function get(string $kind, string $subject, string $variant = null): array
     {
         $root = $this->templatesRoot();
 
@@ -109,14 +110,7 @@ final class FsTemplateAssemblyService implements TemplateAssemblyService
     /** Prefer path(), fall back to getTemplatesRoot() for compatibility. */
     private function templatesRoot(): string
     {
-        if (method_exists($this->roots, 'path')) {
-            $root = $this->roots->path();
-        } elseif (method_exists($this->roots, 'getTemplatesRoot')) {
-            /** @phpstan-ignore-next-line */
-            $root = $this->roots->getTemplatesRoot();
-        } else {
-            throw new RuntimeException('TemplatesRootProvider has no path() or getTemplatesRoot()');
-        }
+        $root = $this->roots->getTemplatesRoot();
 
         if (!is_string($root) || $root === '' || !is_dir($root)) {
             throw new RuntimeException('Templates root provider returned an invalid path: ' . var_export($root, true));
@@ -166,7 +160,7 @@ final class FsTemplateAssemblyService implements TemplateAssemblyService
     private function schemaTag(string $kind): string
     {
         return match ($kind) {
-           
+
             'interface'     => 'iface/1',
             'siteContent'   => 'sc/1',
             'commonContent' => 'cc/1',
