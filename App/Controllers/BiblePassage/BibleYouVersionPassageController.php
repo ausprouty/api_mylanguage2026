@@ -7,13 +7,16 @@ use App\Models\Bible\PassageModel;
 
 class BibleYouVersionPassageController
 {
-    private $biblePassageService;
+    private YouVersionPassageService $biblePassageService;
 
     public function __construct(
         YouVersionPassageService $biblePassageService,
     ) {
         $this->biblePassageService = $biblePassageService;
     }
+   public function fetchPassage(){
+    return;
+   }
 
     public function getPassageText()
     {

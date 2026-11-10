@@ -1,154 +1,244 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\BiblePassage;
 
 use App\Configuration\Config;
-use App\Factories\BibleWordConnectionFactory; 
+use App\Factories\BibleWordConnectionFactory;
 use App\Models\Bible\BibleModel;
+use App\Models\Bible\PassageModel;
+use App\Models\Bible\PassageReferenceModel;
 use App\Services\LoggerService;
-use App\Services\Database\DatabaseService;         
 
-class BibleWordPassageService extends AbstractBiblePassageService
+final class BibleWordPassageService implements BiblePassageProviderInterface
 {
-    /*
-     * NOTE: Only inject the factory here so PHP-DI can autowire safely.
-     * BibleModel + DatabaseService are runtime and will be passed via parent.
-     */
     public function __construct(
-        
-        private BibleWordConnectionFactory $wordConnectionService) 
-    {}
-    /**
-     * Helper invoked right after construction to pass runtime deps.
-     * (Inherits protected init() from AbstractBiblePassageService if you have it;
-     * otherwise keep parent::__construct signature and call it here.)
-     */
-    public function initRuntime(
-        \App\Models\Bible\BibleModel $bible,
-        \App\Services\Database\DatabaseService $databaseService
-    ): void {
-        parent::__construct($bible, $databaseService);
-    }
-
-    /** Resolve base URL (DI param key: endpoints.wordproject) */
-    private function baseUrl(): string
-    {
-        return rtrim((string) Config::get('endpoints.wordproject', 'https://wordproject.org/bibles'), '/');
-    }
-
-    /** Public chapter URL, e.g. https://wordproject.org/bibles/en/42/7.htm */
-    public function getPassageUrl(): string
-    {
-        return $this->baseUrl()
-            . '/' . $this->bible->getExternalId()
-            . '/' . $this->formatChapterPage() . '.htm';
+        private BibleWordConnectionFactory $connectionFactory
+    ) {
     }
 
     /**
-     * Get the raw HTML, preferring local cache when present.
-     * Returns ['<html>'] and sets $this->webpage for later use.
+     * Retrieve a WordProject passage.
+     *
+     * Returns a populated PassageModel.
+     * No database operations or BPID calculation.
      */
-    public function getWebPage(): array
-    {
-        $webpage = [];
-        $local = $this->generateFilePath();
-        LoggerService::logInfo('BibleWordPassageService-local', $local);
+    public function fetchPassage(
+        BibleModel $bible,
+        PassageReferenceModel $reference
+    ): PassageModel {
 
-        if (is_file($local)) {
-            LoggerService::logInfo('BibleWordPassageService-cache', "$local exists");
-            $webpage[0] = $this->fetchFromFileDirectory($local);
-        } else {
-            LoggerService::logInfo('BibleWordPassageService-cache', "$local does NOT exist");
+        $passage = new PassageModel();
 
-            // Build endpoint path only; the connection service adds the base URL
-            $endpoint = $this->bible->getExternalId()
-                . '/' . $this->formatChapterPage() . '.htm';
+        // Public Read More URL
+        $passage->setPassageUrl(
+            $this->buildPassageUrl($bible, $reference)
+        );
 
-            // ✅ use factory ( salvageJson=false for HTML pages)
-            $conn = $this->wordConnectionService->fromPath($endpoint,  salvageJson: false);
-            $body = $conn->getBody();
+        // Retrieve chapter HTML
+        $html = $this->getChapterHtml($bible, $reference);
 
-            if ($body === '') {
-                $msg = 'Empty response from WordProject: ' . $this->getPassageUrl();
-                LoggerService::logError('BibleWordPassageService-http', $msg);
-                throw new \RuntimeException($msg);
-            }
-            $webpage[0] = $body;
+        if ($html === '') {
+            return $passage;
         }
 
-        $this->webpage = $webpage;
-        return $webpage;
+        // Extract requested verses
+        $chapter = $this->trimToChapter($html);
+        $text = $this->trimToVerses($chapter, $reference);
+
+        if ($text === '') {
+            LoggerService::logError(
+                'BibleWordPassageService',
+                'No verses found: ' . $reference->getEntry()
+            );
+
+            return $passage;
+        }
+
+        $passage->setPassageText($text);
+
+        // Local-language reference
+        $passage->setReferenceLocalLanguage(
+            $this->buildLocalReference($html, $reference)
+        );
+
+        return $passage;
     }
 
-    /** Absolute local file path for cached HTML. */
-    private function generateFilePath(): string
+    /**
+     * WordProject base URL.
+     */
+    private function baseUrl(): string
     {
-        $root = rtrim(Config::getDir('resources.root'), "/\\"); // .../Resources
-        $lang = $this->bible->getExternalId();                  // e.g. "en"
-        $rel  = 'bibles/wordproject/' . $lang . '/' . $this->formatChapterPage() . '.html';
-
-        $path = $root . DIRECTORY_SEPARATOR
-            . str_replace('/', DIRECTORY_SEPARATOR, ltrim($rel, "/\\"));
-
-        LoggerService::logInfo('BibleWordPassageService-path', $path);
-        return $path;
+        return rtrim(
+            (string) Config::get(
+                'endpoints.wordproject',
+                'https://wordproject.org/bibles'
+            ),
+            '/'
+        );
     }
 
-    /** "42/7" */
-    private function formatChapterPage(): string
-    {
+    /**
+     * Public chapter URL.
+     */
+    private function buildPassageUrl(
+        BibleModel $bible,
+        PassageReferenceModel $reference
+    ): string {
+
+        return $this->baseUrl()
+            . '/' . $bible->getExternalId()
+            . '/' . $this->formatChapterPage($reference)
+            . '.htm';
+    }
+
+    /**
+     * Retrieve chapter HTML.
+     * Prefer locally stored HTML where available.
+     */
+    private function getChapterHtml(
+        BibleModel $bible,
+        PassageReferenceModel $reference
+    ): string {
+
+        $local = $this->generateFilePath($bible, $reference);
+
+        if (is_file($local)) {
+            LoggerService::logDebug(
+                'BibleWordPassageService.cache',
+                'Local file: ' . $local
+            );
+
+            $html = file_get_contents($local);
+
+            if ($html === false) {
+                throw new \RuntimeException(
+                    'Unable to read WordProject file: ' . $local
+                );
+            }
+
+            return $html;
+        }
+
+        // No local file: fetch from WordProject
+        $endpoint = $bible->getExternalId()
+            . '/' . $this->formatChapterPage($reference)
+            . '.htm';
+
+        $conn = $this->connectionFactory->fromPath(
+            $endpoint,
+            salvageJson: false
+        );
+
+        $html = $conn->getBody();
+
+        if ($html === '') {
+            throw new \RuntimeException(
+                'Empty WordProject response: ' . $endpoint
+            );
+        }
+
+        return $html;
+    }
+
+    /**
+     * Local HTML file location.
+     */
+    private function generateFilePath(
+        BibleModel $bible,
+        PassageReferenceModel $reference
+    ): string {
+
+        $root = rtrim(
+            Config::getDir('resources.root'),
+            "/\\"
+        );
+
+        $relativePath = 'bibles/wordproject/'
+            . $bible->getExternalId()
+            . '/'
+            . $this->formatChapterPage($reference)
+            . '.html';
+
+        return $root . DIRECTORY_SEPARATOR
+            . str_replace(
+                '/',
+                DIRECTORY_SEPARATOR,
+                $relativePath
+            );
+    }
+
+    /**
+     * WordProject chapter path, e.g. "42/7".
+     */
+    private function formatChapterPage(
+        PassageReferenceModel $reference
+    ): string {
+
         $book = str_pad(
-            (string) (int) $this->passageReference->getBookNumber(),
+            (string) (int) $reference->getBookNumber(),
             2,
             '0',
             STR_PAD_LEFT
         );
-        $chapter = (int) $this->passageReference->getChapterStart();
-        return $book . '/' . $chapter;
+
+        return $book . '/' . $reference->getChapterStart();
     }
 
-    /** Read a local cached HTML file. */
-    private function fetchFromFileDirectory(string $filename): string
-    {
-        LoggerService::logInfo('BibleWordPassageService-readfile', $filename);
-        return (string) file_get_contents($filename);
-    }
-
-    /** Extract selected verses as HTML <p><sup>N</sup>…</p> */
-    public function getPassageText(): string
-    {
-        $html = $this->webpage[0] ?? '';
-        if ($html === '') return '';
-
-        $chapter = $this->trimToChapter($html);
-        return $this->trimToVerses($chapter);
-    }
-
-    private function trimToChapter(string $pageHtml): string
+    /**
+     * Remove content outside the chapter.
+     */
+    private function trimToChapter(string $html): string
     {
         $startMarker = '<!--... the Word of God:-->';
-        $endMarker   = '<!--... sharper than any twoedged sword... -->';
+        $endMarker = '<!--... sharper than any twoedged sword... -->';
 
-        $startPos = strpos($pageHtml, $startMarker);
-        $endPos   = strpos($pageHtml, $endMarker);
+        $start = strpos($html, $startMarker);
+        $end = strpos($html, $endMarker);
 
-        if ($startPos === false || $endPos === false || $endPos <= $startPos) {
-            return $pageHtml; // fallback
+        if (
+            $start === false ||
+            $end === false ||
+            $end <= $start
+        ) {
+            return $html;
         }
-        $startPos += strlen($startMarker);
-        return substr($pageHtml, $startPos, $endPos - $startPos);
+
+        $start += strlen($startMarker);
+
+        return substr($html, $start, $end - $start);
     }
 
-    private function trimToVerses(string $chapterHtml): string
-    {
-        LoggerService::logInfo('BibleWordPassageService-chapter', 'len=' . strlen($chapterHtml));
-        $selected = $this->selectVerses($chapterHtml);
-        return $selected === '' ? '' : "\n<!-- begin bible -->{$selected}\n<!-- end bible -->\n";
+    /**
+     * Extract and wrap the requested verses.
+     */
+    private function trimToVerses(
+        string $html,
+        PassageReferenceModel $reference
+    ): string {
+
+        $selected = $this->selectVerses($html, $reference);
+
+        if ($selected === '') {
+            return '';
+        }
+
+        return "\n<!-- begin bible -->"
+            . $selected
+            . "\n<!-- end bible -->\n";
     }
 
-    private function selectVerses(string $page): string
-    {
-        $page = str_replace(
+    /**
+     * Select verses from WordProject HTML.
+     */
+    private function selectVerses(
+        string $html,
+        PassageReferenceModel $reference
+    ): string {
+
+        $html = str_replace(
             [
                 '<!--span class="verse"',
                 '</span-->',
@@ -165,53 +255,70 @@ class BibleWordPassageService extends AbstractBiblePassageService
                 '<br>',
                 '<br>'
             ],
-            $page
+            $html
         );
-        $page = preg_replace('/<span class="dimver(?:se)?">.*?<\/span>/us', '', $page);
-        $page = preg_replace('/<sup>\d+<\/sup>/u', '', $page);
 
-        $vStart = (int) $this->passageReference->getVerseStart();
-        $vEnd   = (int) $this->passageReference->getVerseEnd();
+        $html = preg_replace(
+            '/<span class="dimver(?:se)?">.*?<\/span>/us',
+            '',
+            $html
+        );
 
-        LoggerService::logInfo('BibleWordPassageService-range', [
-            'book' => $this->passageReference->getBookNumber(),
-            'chapterStart' => $this->passageReference->getChapterStart(),
-            'verseStart' => $vStart,
-            'verseEnd' => $vEnd,
-            'requestedReference' => method_exists(
-                $this->passageReference,
-                'getEntry'
-            ) ? $this->passageReference->getEntry() : null,
-        ]);
+        $html = preg_replace(
+            '/<sup>\d+<\/sup>/u',
+            '',
+            $html
+        );
 
-        $range  = range($vStart, $vEnd);
+        $start = (int) $reference->getVerseStart();
+        $end = (int) $reference->getVerseEnd();
 
-        $out = '';
-        foreach (explode('<br>', $page) as $line) {
+        $output = '';
+
+        foreach (explode('<br>', $html) as $line) {
+
             $line = trim($line);
-            if ($line === '') continue; 
-            // DEBUG: log the raw verse line
-            LoggerService::logInfo('BibleWordPassageService-rawline', $line);
-            $n = $this->extractVerseNumber($line);
-            if ($n !== 0 && in_array($n, $range, true)) {
-                $out .= $this->formatVerseLine($n, $line);
+
+            if ($line === '') {
+                continue;
+            }
+
+            $number = $this->extractVerseNumber($line);
+
+            if (
+                $number >= $start &&
+                $number <= $end
+            ) {
+                $output .= $this->formatVerseLine(
+                    $number,
+                    $line
+                );
             }
         }
-        return $out;
+
+        return $output;
     }
 
-    private function formatVerseLine(int $verseNum, string $line): string
-    {
-        // Remove leading chapter markers sometimes inserted by WordProject
-        $line = preg_replace('/^\s*<sup>\d+<\/sup>\s*/u', '', $line);
+    /**
+     * Format a single verse.
+     */
+    private function formatVerseLine(
+        int $verseNumber,
+        string $line
+    ): string {
 
         $line = preg_replace(
-            '/^\s*<span class="dimver(?:se)?">\s*.*?<\/span>\s*/u',
+            '/^\s*<sup>\d+<\/sup>\s*/u',
             '',
             $line
         );
 
-        // Remove anything before and including the verse marker itself
+        $line = preg_replace(
+            '/^\s*<span class="dimver(?:se)?">.*?<\/span>\s*/u',
+            '',
+            $line
+        );
+
         $verseText = preg_replace(
             '/^.*?<span class="verse"[^>]*id="\d+"[^>]*>\s*\d+\s*<\/span>\s*/us',
             '',
@@ -222,96 +329,120 @@ class BibleWordPassageService extends AbstractBiblePassageService
             $verseText = $line;
         }
 
-        return '<p><sup>' . $verseNum . '</sup>' . $verseText . "</p>\n";
+        return '<p><sup>'
+            . $verseNumber
+            . '</sup>'
+            . $verseText
+            . "</p>\n";
     }
 
+    /**
+     * Extract verse number from HTML.
+     */
     private function extractVerseNumber(string $line): int
     {
-        if (
-            preg_match(
-                '/<span class="verse"[^>]*id="\d+"[^>]*>\s*(\d+)\s*<\/span>/u',
-                $line,
-                $m
-            )
-        ) {
-            return (int) $m[1];
+        if (preg_match(
+            '/<span class="verse"[^>]*id="\d+"[^>]*>\s*(\d+)\s*<\/span>/u',
+            $line,
+            $matches
+        )) {
+            return (int) $matches[1];
         }
 
         return 0;
     }
 
-    public function getReferenceLocalLanguage(): string
-    {
-        $html = $this->webpage[0] ?? '';
+    /**
+     * Construct the local-language reference
+     * from the HTML page title.
+     */
+    private function buildLocalReference(
+        string $html,
+        PassageReferenceModel $reference
+    ): string {
 
-        $vs = (int) $this->passageReference->getVerseStart();
-        $ve = (int) $this->passageReference->getVerseEnd();
+        $vs = (int) $reference->getVerseStart();
+        $ve = (int) $reference->getVerseEnd();
 
-        // Safe fallback if we can't read HTML/title
-        if ($html === '' || !preg_match('/<title>(.*?)<\/title>/iu', $html, $m)) {
-            return $vs . '-' . $ve;
+        $verses = $vs === $ve
+            ? (string) $vs
+            : $vs . '-' . $ve;
+
+        $chapter = (int) $reference->getChapterStart();
+
+        // Fallback when no title exists
+        if (
+            !preg_match(
+                '/<title>(.*?)<\/title>/isu',
+                $html,
+                $matches
+            )
+        ) {
+            return $chapter . ':' . $verses;
         }
 
-        $title = trim($m[1] ?? '');
+        $title = trim(
+            html_entity_decode(
+                strip_tags($matches[1]),
+                ENT_QUOTES | ENT_HTML5,
+                'UTF-8'
+            )
+        );
+
         if ($title === '') {
-            return $vs . '-' . $ve;
+            return $chapter . ':' . $verses;
         }
 
-        // ------------------------------------------------------------
-        // 1) Remove translation/publisher suffixes and keep book+chapter
-        // ------------------------------------------------------------
-
-        // If there's a comma, keep the part AFTER the last comma
-        // e.g. "Krishti Shpëtimtari , GJONI 3" -> "GJONI 3"
+        // Take text after last comma
         if (preg_match('/[,，]/u', $title)) {
             $parts = preg_split('/[,，]/u', $title);
             $title = trim(end($parts));
         }
 
-        // If there's a semicolon, drop everything after it
-        // e.g. "3GJONI 1 ; Bibël - Dhjata e Re" -> "3GJONI 1"
-        $title = preg_replace('/\s*[;；].*$/u', '', $title);
-        $title = trim($title);
+        // Remove publisher suffix
+        $title = preg_replace(
+            '/\s*[;；].*$/u',
+            '',
+            $title
+        );
 
-        // Normalize "3GJONI" -> "3 GJONI" (digit glued to letters)
-        $title = preg_replace('/^(\d)(\p{L})/u', '$1 $2', $title);
+        // Convert "3GJONI" to "3 GJONI"
+        $title = preg_replace(
+            '/^(\d)(\p{L})/u',
+            '$1 $2',
+            trim($title)
+        );
 
-        // ------------------------------------------------------------
-        // 2) Extract BOOK + CHAPTER from known title patterns
-        // ------------------------------------------------------------
-
-        // Korean-style: "예레미야 애가 1: 성경 - 구약 성서"
-        // => book="예레미야 애가", ch=1
-        if (preg_match('/^(.+?)\s+(\d+)\s*[:：]/u', $title, $m2)) {
-            $book = trim($m2[1]);
-            $ch   = (int) $m2[2];
-            return $book . ' ' . $ch . ':' . $vs . '-' . $ve;
+        // Korean-style: "예레미야 애가 1: ..."
+        if (preg_match(
+            '/^(.+?)\s+(\d+)\s*[:：]/u',
+            $title,
+            $m
+        )) {
+            return trim($m[1])
+                . ' ' . $m[2] . ':' . $verses;
         }
 
-        // Portuguese/Spanish/English worded chapter:
-        // "Cantares de Salomão capítulo 1"
-        // "Cantares de Salomão capitulo 1"
         // "Song of Songs chapter 1"
         if (preg_match(
             '/^(.+?)\s+(?:cap[ií]tulo|chapter)\s+(\d+)\s*$/iu',
             $title,
-            $m2
+            $m
         )) {
-            $book = trim($m2[1]);
-            $ch   = (int) $m2[2];
-            return $book . ' ' . $ch . ':' . $vs . '-' . $ve;
+            return trim($m[1])
+                . ' ' . $m[2] . ':' . $verses;
         }
 
-        // Generic: ends with chapter number
-        // "GJONI 3", "1 GJONI 5", "3 GJONI 1"
-        if (preg_match('/^(.+?)\s+(\d+)\s*$/u', $title, $m2)) {
-            $book = trim($m2[1]);
-            $ch   = (int) $m2[2];
-            return $book . ' ' . $ch . ':' . $vs . '-' . $ve;
+        // Generic: "GJONI 3"
+        if (preg_match(
+            '/^(.+?)\s+(\d+)\s*$/u',
+            $title,
+            $m
+        )) {
+            return trim($m[1])
+                . ' ' . $m[2] . ':' . $verses;
         }
 
-        // Last resort: return cleaned title + verses
-        return $title . ':' . $vs . '-' . $ve;
+        return $title . ':' . $verses;
     }
-
 }

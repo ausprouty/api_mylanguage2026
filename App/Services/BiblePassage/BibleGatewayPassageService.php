@@ -1,310 +1,405 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\BiblePassage;
 
+use App\Configuration\Config;
 use App\Factories\BibleGatewayConnectionFactory;
 use App\Models\Bible\BibleModel;
-use App\Services\Database\DatabaseService;
+use App\Models\Bible\PassageModel;
+use App\Models\Bible\PassageReferenceModel;
 use App\Services\LoggerService;
-use App\Configuration\Config;
-use InvalidArgumentException;
+use DOMDocument;
+use DOMXPath;
 
-class BibleGatewayPassageService extends AbstractBiblePassageService
+final class BibleGatewayPassageService implements BiblePassageProviderInterface
 {
+    public function __construct(
+        private BibleGatewayConnectionFactory $connectionFactory
+    ) {
+    }
 
     /**
-     * Example: https://www.biblegateway.com/passage/?search=John%203%3A16&version=NIV
+     * Fetch a BibleGateway passage.
+     *
+     * No BPID generation, database operations,
+     * caching, or numeral localisation.
      */
-    public function getPassageUrl(): string
-    {
-        
-        $reference = trim((string) $this->passageReference->getEntry());
-        $version   = trim((string) $this->bible->getExternalId());
+    public function fetchPassage(
+        BibleModel $bible,
+        PassageReferenceModel $reference
+    ): PassageModel {
+        $passage = new PassageModel();
 
-        if ($reference === '' || $version === '') {
-            throw new InvalidArgumentException('Missing reference or version.');
+        // Build the public Read More URL.
+        $url = $this->buildPassageUrl($bible, $reference);
+        $passage->setPassageUrl($url);
+
+        // Retrieve the HTML.
+        $html = $this->fetchHtml($bible, $reference);
+
+        if ($html === '') {
+            return $passage;
         }
-        $baseUrl = (string) (Config::get('endpoints.biblegateway')
-            ?? 'https://www.biblegateway.com');
-        $baseUrl = rtrim($baseUrl, '/');
+
+        // Extract passage text.
+        $text = $this->extractPassageText($html);
+
+        if ($text === '') {
+            LoggerService::logError(
+                'BibleGatewayPassageService',
+                'No passage text: ' . $reference->getEntry()
+            );
+
+            return $passage;
+        }
+
+        $passage->setPassageText($text);
+
+        // Extract the reference in the local language.
+        $localReference = $this->extractLocalReference($html);
+
+        $passage->setReferenceLocalLanguage($localReference);
+
+        return $passage;
+    }
+
+    /**
+     * Public BibleGateway Read More URL.
+     *
+     * Example:
+     * https://www.biblegateway.com/passage/?search=John%203%3A16&version=NIV
+     */
+    private function buildPassageUrl(
+        BibleModel $bible,
+        PassageReferenceModel $reference
+    ): string {
+        $baseUrl = rtrim(
+            (string) Config::get(
+                'endpoints.biblegateway',
+                'https://www.biblegateway.com'
+            ),
+            '/'
+        );
 
         $query = http_build_query(
-            ['search' => $reference, 'version' => $version],
-            '', '&', PHP_QUERY_RFC3986
+            [
+                'search'  => $reference->getEntry(),
+                'version' => $bible->getExternalId(),
+            ],
+            '',
+            '&',
+            PHP_QUERY_RFC3986
         );
 
         return $baseUrl . '/passage/?' . $query;
- 
-
     }
 
     /**
-     * Fetch the HTML for the passage from BibleGateway.
+     * Retrieve HTML from BibleGateway.
      */
-    public function getWebPage(): string
-    {
-        // Build only the path/query; the factory/service will prepend base URL.
+    private function fetchHtml(
+        BibleModel $bible,
+        PassageReferenceModel $reference
+    ): string {
         $endpoint = '/passage/?search='
-            . rawurlencode($this->passageReference->getEntry())
-            . '&version=' . rawurlencode($this->bible->getExternalId());
+            . rawurlencode($reference->getEntry())
+            . '&version='
+            . rawurlencode($bible->getExternalId());
 
-        // ✅ use the factory (autoFetch=true, salvageJson=false for HTML)
-         $factory = new BibleGatewayConnectionFactory();
-         $conn = $factory->fromPath($endpoint, autoFetch: true, salvageJson: false);
- 
+        $conn = $this->connectionFactory->fromPath(
+            $endpoint,
+            autoFetch: true,
+            salvageJson: false
+        );
 
-        $body = $conn->getBody();
-        if ($body === '') {
-            throw new \RuntimeException("Empty response from BibleGateway: {$endpoint}");
+        $html = $conn->getBody();
+
+        if ($html === '') {
+            throw new \RuntimeException(
+                'Empty response from BibleGateway: ' . $endpoint
+            );
         }
-        return $body;
+
+        return $html;
     }
 
     /**
-     * Extract and clean the BibleGateway passage HTML from the fetched page.
+     * Extract and clean Bible passage HTML.
      *
-     * Goal
-     * ----
-     * Return a compact HTML fragment that is safe to embed in our UI:
-     * - Keep paragraph structure (<p>) and verse numbers (<sup class="versenum">…</sup>)
-     * - Remove crossrefs/footnotes/scripts/styles/headers/links and other noise
-     * - Prefer returning the "deep content" wrapper (<div class="std-text">…</div>)
+     * Preserves:
+     * - Paragraph structure
+     * - Chapter and verse numbers
+     * - Small caps
      *
-     * Source assumptions (BibleGateway)
-     * --------------------------------
-     * - The main passage wrapper is:   <div class="passage-text">…</div>
-     * - Verse numbers are usually:     <sup class="versenum">16</sup>
-     * - Cross references section is:   <div class="crossrefs …">…</div>
-     * - Main readable text is in:      <div class="std-text">…</div>
-     *
-     * Notes
-     * -----
-     * - DOMDocument::saveHTML() often inserts newlines/indentation. We minify by
-     *   collapsing whitespace between tags so JSON output won’t contain \n.
-     * - We parse into a full DOM, then copy only the passage-text subtree into a new
-     *   DOM so cleanup queries cannot accidentally touch unrelated page content.
+     * Removes:
+     * - Footnotes and cross-references
+     * - Scripts and styles
+     * - Hyperlinks (but keeps their text)
+     * - Unnecessary headings and wrappers
      */
-    public function getPassageText(): string
+    private function extractPassageText(string $html): string
     {
-        // Timing + input size logging helps catch slow parses and unexpected payloads
-        $t0 = microtime(true);
-        $html = (string)($this->webpage ?? '');
-        $inBytes = strlen($html);
-        LoggerService::logInfo('PassageText:start', "in_bytes={$inBytes}");
-
-        // No input -> nothing to extract
-        if ($inBytes === 0) {
-            LoggerService::logError('PassageText:empty', 'No HTML input');
+        if ($html === '') {
             return '';
         }
 
-        // Suppress libxml warnings (BibleGateway HTML is not strict XML)
-        libxml_use_internal_errors(true);
+        $previousErrors = libxml_use_internal_errors(true);
 
-        // Parse flags:
-        // - NONET: block network access during parse (safer)
-        // - NOERROR/NOWARNING: suppress parser warnings
-        // - COMPACT: reduce memory usage
-        // - BIGLINES (if available): better line numbers in error reporting
-        $flags = LIBXML_NOERROR
-            | LIBXML_NOWARNING
-            | LIBXML_NONET
-            | LIBXML_COMPACT
-            | (defined('LIBXML_BIGLINES') ? LIBXML_BIGLINES : 0);
+        try {
+            $flags = LIBXML_NOERROR
+                | LIBXML_NOWARNING
+                | LIBXML_NONET
+                | LIBXML_COMPACT;
 
-        // 1) Parse the fetched HTML into a DOM
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $ok  = @$dom->loadHTML($html, $flags);
+            $dom = new DOMDocument('1.0', 'UTF-8');
 
-        LoggerService::logInfo(
-            'PassageText:parse_ms',
-            (string)((microtime(true) - $t0) * 1000)
-        );
+            if (!@$dom->loadHTML($html, $flags)) {
+                return '';
+            }
 
-        if (!$ok) {
-            LoggerService::logError(
-                'PassageText:parse_fail',
-                'DOMDocument->loadHTML failed'
+            $xpath = new DOMXPath($dom);
+
+            // Find BibleGateway's main passage container.
+            $nodes = $xpath->query(
+                "//div[contains(concat(' ', normalize-space(@class), ' '), ' passage-text ')]"
             );
-            return '';
-        }
 
-        // 2) Locate the passage container in the source DOM
-        $xp = new \DOMXPath($dom);
-        $nl = $xp->query(
-            "//div[contains(concat(' ', normalize-space(@class), ' '), ' passage-text ')]"
-        );
+            if (!$nodes || $nodes->length === 0) {
+                LoggerService::logError(
+                    'BibleGatewayPassageService',
+                    'passage-text container not found'
+                );
 
-        if ($nl->length === 0) {
-            LoggerService::logError(
-                'PassageText:no_container',
-                'div.passage-text not found'
+                return '';
+            }
+
+            // Copy the passage into its own document.
+            $cleanDom = new DOMDocument('1.0', 'UTF-8');
+
+            $passageNode = $cleanDom->importNode(
+                $nodes->item(0),
+                true
             );
-            return '';
-        }
 
-        // 3) Copy ONLY the passage subtree into a new DOM so cleanup is scoped
-        $newDom = new \DOMDocument('1.0', 'UTF-8');
-        $passageDiv = $newDom->importNode($nl->item(0), true);
-        $newDom->appendChild($passageDiv);
-        $xp2 = new \DOMXPath($newDom);
+            $cleanDom->appendChild($passageNode);
 
-        // 4) Remove entire blocks/elements we never want in the output
-        //    - footnotes + crossrefs: noisy and often empty placeholders
-        //    - scripts/styles/templates/noscript: non-content
-        //    - h3: section headings like “Cross references”
-        foreach ($xp2->query(
-            "//div[contains(concat(' ', normalize-space(@class), ' '), ' footnotes ')]"
-            . "|//div[contains(concat(' ', normalize-space(@class), ' '), ' crossrefs ')]"
-            . "|//script|//style|//noscript|//template|//h3"
-        ) as $n) {
-            $n->parentNode->removeChild($n);
-        }
+            $xp = new DOMXPath($cleanDom);
 
-        // 4b) Remove inline reference headings like:
-        //     <h4 class="reference">See also Matthew 4:15-37</h4>
-        foreach ($xp2->query(
-            "//h4[contains(concat(' ', normalize-space(@class), ' '), ' reference ')]"
-        ) as $n) {
-            if ($n->parentNode) {
-                $n->parentNode->removeChild($n);
-            }
-        }
+            // Remove unwanted blocks.
+            $this->removeNodes(
+                $xp,
+                "//div[contains(concat(' ', normalize-space(@class), ' '), ' footnotes ')]"
+                . "|//div[contains(concat(' ', normalize-space(@class), ' '), ' crossrefs ')]"
+                . "|//script|//style|//noscript|//template|//h3"
+            );
 
+            // Remove inline reference headings.
+            $this->removeNodes(
+                $xp,
+                "//h4[contains(concat(' ', normalize-space(@class), ' '), ' reference ')]"
+            );
 
-        // 5) Remove superscripts EXCEPT chapter/verse numbers.
-        //    BibleGateway uses <sup class="versenum">…</sup> for verse numbers.
-        foreach ($xp2->query(
-            "//sup[not(contains(concat(' ', normalize-space(@class), ' '), ' chapternum '))"
-            . " and not(contains(concat(' ', normalize-space(@class), ' '), ' versenum '))]"
-        ) as $n) {
-            $n->parentNode->removeChild($n);
-        }
+            // Remove superscripts except verse/chapter numbers.
+            $this->removeNodes(
+                $xp,
+                "//sup[not(contains(concat(' ', normalize-space(@class), ' '), ' chapternum '))"
+                . " and not(contains(concat(' ', normalize-space(@class), ' '), ' versenum '))]"
+            );
 
-        // 6) Unwrap links:
-        //    We do NOT want anchors (clickable links), but we DO want their text.
-        foreach ($xp2->query("//a") as $n) {
-            $p = $n->parentNode;
-            while ($n->firstChild) {
-                $p->insertBefore($n->firstChild, $n);
-            }
-            $p->removeChild($n);
-        }
+            // Unwrap hyperlinks but preserve their text.
+            $this->unwrapNodes($xp, '//a');
 
-        // 7) Remove HTML comments (BibleGateway leaves markers like <!--end of crossrefs-->)
-        foreach ($xp2->query("//comment()") as $n) {
-            $n->parentNode->removeChild($n);
-        }
+            // Remove HTML comments.
+            $this->removeNodes($xp, '//comment()');
 
-        // 8) Remove leftover UI text that can remain after unwrapping links
-        foreach ($xp2->query("//text()[normalize-space(.)='Read full chapter']") as $n) {
-            $n->parentNode->removeChild($n);
-        }
+            // Remove leftover navigation text.
+            $this->removeNodes(
+                $xp,
+                "//text()[normalize-space(.)='Read full chapter']"
+            );
 
-        // 9) Remove empty structural divs that add no value
-        foreach ($xp2->query(
-            "//div[contains(concat(' ', normalize-space(@class), ' '), ' il-text ')]"
-            . "[not(normalize-space()) and not(*)]"
-        ) as $n) {
-            $n->parentNode->removeChild($n);
-        }
+            // Remove empty structural divs.
+            $this->removeNodes(
+                $xp,
+                "//div[contains(concat(' ', normalize-space(@class), ' '), ' il-text ')]"
+                . "[not(normalize-space()) and not(*)]"
+            );
 
-        // 10) Unwrap spans to reduce markup noise,
-        //     but preserve chapternum/versenum spans if they exist.
-        foreach ($xp2->query(
-            "//span[not(contains(concat(' ', normalize-space(@class), ' '), ' chapternum '))"
-            . " and not(contains(concat(' ', normalize-space(@class), ' '), ' versenum '))]"
-        ) as $n) {
-            $p = $n->parentNode;
-            while ($n->firstChild) {
-                $p->insertBefore($n->firstChild, $n);
-            }
-            $p->removeChild($n);
-        }
+            // Remove unnecessary spans while preserving verse markers.
+            $this->unwrapNodes(
+                $xp,
+                "//span[not(contains(concat(' ', normalize-space(@class), ' '), ' chapternum '))"
+                . " and not(contains(concat(' ', normalize-space(@class), ' '), ' versenum '))]"
+            );
 
-        // 11) Convert nonstandard <small-caps> tags into a normal <span>
-        foreach ($xp2->query('//small-caps') as $n) {
-            $span = $newDom->createElement('span');
-            $span->setAttribute('class', 'small-caps');
-            $span->setAttribute('style', 'font-variant: small-caps');
+            // Convert small-caps elements.
+            $smallCaps = $xp->query('//small-caps');
 
-            while ($n->firstChild) {
-                $span->appendChild($n->firstChild);
+            if ($smallCaps) {
+                foreach (iterator_to_array($smallCaps) as $node) {
+                    $span = $cleanDom->createElement('span');
+
+                    $span->setAttribute('class', 'small-caps');
+                    $span->setAttribute(
+                        'style',
+                        'font-variant: small-caps'
+                    );
+
+                    while ($node->firstChild) {
+                        $span->appendChild($node->firstChild);
+                    }
+
+                    $node->parentNode?->replaceChild($span, $node);
+                }
             }
 
-            $n->parentNode->replaceChild($span, $n);
+            // Prefer the actual text wrapper.
+            $std = $xp->query(
+                "//div[contains(concat(' ', normalize-space(@class), ' '), ' std-text ')]"
+            );
+
+            $root = ($std && $std->length > 0)
+                ? $std->item(0)
+                : $cleanDom->documentElement;
+
+            if (!$root) {
+                return '';
+            }
+
+            $output = $cleanDom->saveHTML($root);
+
+            if ($output === false) {
+                return '';
+            }
+
+            // Remove whitespace inserted between HTML tags.
+            $output = preg_replace(
+                '/>\s+</u',
+                '><',
+                $output
+            );
+
+            return trim($output ?? '');
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousErrors);
         }
-
-        // 12) Choose the best root to return:
-        //     Prefer div.std-text (BibleGateway’s “real content” wrapper) so we avoid
-        //     returning the extra outer div layers (passage-content/version/etc).
-        $std = $xp2->query(
-            "//div[contains(concat(' ', normalize-space(@class), ' '), ' std-text ')]"
-        );
-        $root = ($std->length > 0) ? $std->item(0) : $newDom->documentElement;
-
-        // 13) Serialize HTML and minify whitespace inserted by DOMDocument
-        $out = $newDom->saveHTML($root);
-
-        // Collapse whitespace/newlines BETWEEN tags (keeps text spacing intact)
-        $out = preg_replace("/>\s+</u", "><", $out);
-        $out = trim($out);
-
-        LoggerService::logInfo(
-            'PassageText:done',
-            "ms=" . (int)((microtime(true) - $t0) * 1000)
-            . " out_bytes=" . strlen($out)
-        );
-
-        return $out;
     }
 
+    /**
+     * Remove selected DOM nodes.
+     */
+    private function removeNodes(
+        DOMXPath $xpath,
+        string $query
+    ): void {
+        $nodes = $xpath->query($query);
 
-
-
-    public function getReferenceLocalLanguage(): string
-    {
-        $t0 = microtime(true);
-        $html = (string)($this->webpage ?? '');
-        if ($html === '') {
-            LoggerService::logError('RefLocal:empty', 'No HTML input');
-            return '';
+        if (!$nodes) {
+            return;
         }
 
-        $html = preg_replace('~<(script|style|noscript|template)\b[^>]*>.*?</\1>~is', '', $html);
+        foreach (iterator_to_array($nodes) as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+    }
 
-        libxml_use_internal_errors(true);
-        $flags = LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_NONET | LIBXML_COMPACT | (defined('LIBXML_BIGLINES') ? LIBXML_BIGLINES : 0);
+    /**
+     * Remove the specified tags but preserve their children.
+     */
+    private function unwrapNodes(
+        DOMXPath $xpath,
+        string $query
+    ): void {
+        $nodes = $xpath->query($query);
 
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $ok  = @$dom->loadHTML($html, $flags);
-        LoggerService::logInfo('RefLocal:parse_ms', (string)((microtime(true) - $t0) * 1000));
-
-        if (!$ok) {
-            LoggerService::logError('RefLocal:parse_fail', 'DOMDocument->loadHTML failed');
-            return '';
+        if (!$nodes) {
+            return;
         }
 
-        $xp = new \DOMXPath($dom);
-        $xpaths = [
-            "//div[contains(concat(' ', normalize-space(@class), ' '), ' passage-display ')]",
-            "//h1[contains(concat(' ', normalize-space(@class), ' '), ' passage-display ')]",
-            "//div[contains(concat(' ', normalize-space(@class), ' '), ' dropdown-display-text ')]",
-        ];
+        foreach (iterator_to_array($nodes) as $node) {
+            $parent = $node->parentNode;
 
-        foreach ($xpaths as $q) {
-            $nl = $xp->query($q);
-            if ($nl && $nl->length > 0) {
-                $txt = trim(preg_replace('/\s+/u', ' ', $nl->item(0)->textContent ?? ''));
-                if ($txt !== '') return $txt;
+            if (!$parent) {
+                continue;
             }
+
+            while ($node->firstChild) {
+                $parent->insertBefore(
+                    $node->firstChild,
+                    $node
+                );
+            }
+
+            $parent->removeChild($node);
+        }
+    }
+
+    /**
+     * Extract the local-language reference.
+     *
+     * Looks for BibleGateway's passage heading.
+     */
+    private function extractLocalReference(string $html): string
+    {
+        if ($html === '') {
+            return '';
         }
 
-        if (preg_match('~<(?:div|h1)[^>]*class="[^"]*(?:passage-display|dropdown-display-text)[^"]*"[^>]*>(.*?)</(?:div|h1)>~is', $html, $m)) {
-            $text = strip_tags($m[1]);
-            return trim(preg_replace('/\s+/u', ' ', html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
-        }
+        $previousErrors = libxml_use_internal_errors(true);
 
-        return '';
+        try {
+            $dom = new DOMDocument('1.0', 'UTF-8');
+
+            $cleanHtml = preg_replace(
+                '~<(script|style|noscript|template)\b[^>]*>.*?</\1>~is',
+                '',
+                $html
+            );
+
+            $flags = LIBXML_NOERROR
+                | LIBXML_NOWARNING
+                | LIBXML_NONET
+                | LIBXML_COMPACT;
+
+            if (!@$dom->loadHTML($cleanHtml ?? '', $flags)) {
+                return '';
+            }
+
+            $xpath = new DOMXPath($dom);
+
+            $queries = [
+                "//div[contains(concat(' ', normalize-space(@class), ' '), ' passage-display ')]",
+                "//h1[contains(concat(' ', normalize-space(@class), ' '), ' passage-display ')]",
+                "//div[contains(concat(' ', normalize-space(@class), ' '), ' dropdown-display-text ')]",
+            ];
+
+            foreach ($queries as $query) {
+                $nodes = $xpath->query($query);
+
+                if (!$nodes || $nodes->length === 0) {
+                    continue;
+                }
+
+                $text = trim(
+                    preg_replace(
+                        '/\s+/u',
+                        ' ',
+                        $nodes->item(0)->textContent ?? ''
+                    ) ?? ''
+                );
+
+                if ($text !== '') {
+                    return $text;
+                }
+            }
+
+            return '';
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousErrors);
+        }
     }
 }

@@ -13,12 +13,11 @@ use App\Services\Web\BibleBrainConnectionService;
 class BibleBrainTextPlainController
 {
     public function __construct(
-        private BibleModel $bible,
         private PassageReferenceModel $bibleReference,
+        private BibleModel $bible,
         private PassageFormatterService $formatter,
         private BibleReferenceRepository $bibleReferenceRepository
-    ) {
-    }
+    ) {}
 
     /**
      * Fetch passage from BibleBrain (text_plain), format it,
@@ -29,7 +28,6 @@ class BibleBrainTextPlainController
     public function fetchPassage(): PassageModel
     {
         $passage = new PassageModel();
-        $passage->setBpid($this->bibleReference->getBpid());
 
         $endpoint = sprintf(
             '/api/bibles/filesets/%s/%s/%s/',
@@ -48,17 +46,18 @@ class BibleBrainTextPlainController
 
         if (!$response || empty($response->data)) {
             LoggerService::logError(
-                'BBTPC:empty_response',
-                $url
+                'BibleBrainTextPlainController',
+                'empty_response: ' . $endpoint
             );
             return $passage;
         }
 
         $html = $this->formatter->formatPassageText($response->data ?? []);
+       
         if ($html === null || $html === '') {
             LoggerService::logError(
-                'BBTPC:no_text',
-                $url
+                'BibleBrainTextPlainController',
+                'no_text'
             );
             return $passage;
         }
@@ -68,7 +67,7 @@ class BibleBrainTextPlainController
         $localRef = $this->buildReferenceLocalLanguage($response);
         $passage->setReferenceLocalLanguage($localRef);
 
-        $passage->setPassageUrl($url);
+        $passage->setPassageUrl('');
 
         return $passage;
     }
@@ -87,7 +86,8 @@ class BibleBrainTextPlainController
 
         $bookName = null;
 
-        if (isset($response->data[0]->book_name_alt)
+        if (
+            isset($response->data[0]->book_name_alt)
             && $response->data[0]->book_name_alt !== ''
         ) {
             $bookName = $response->data[0]->book_name_alt;

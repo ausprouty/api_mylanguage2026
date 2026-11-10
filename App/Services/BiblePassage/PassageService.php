@@ -13,41 +13,66 @@ class PassageService
 {
     public function __construct(
         private PassageRepository $passageRepository,
-        private PassageSourceResolver $sourceResolver,
+        
         private ReferenceLocaliserService $referenceLocaliser
     ) {
     }
 
     public function getPassage(
         BibleModel $bible,
-        PassageReferenceModel $reference
+        PassageReferenceModel $reference,
+        PassageModel $passage
     ): PassageModel {
-        $bpid = $reference->getBpid();
 
-        // 1) Check cache
+        $bpid = $passage->getBpid();
+
+        if ($bpid === '') {
+            throw new \InvalidArgumentException(
+                'PassageService: BPID must be set before fetching passage'
+            );
+        }
+
+        // 1) Check database
         $existing = $this->passageRepository->findByBpid($bpid);
 
-        if ($existing instanceof PassageModel &&
-            $existing->getPassageText() !== '') {
+        if (
+            $existing instanceof PassageModel &&
+            $existing->getPassageText() !== ''
+        ) {
             return $existing;
         }
 
         // 2) Fetch from external provider
-        $source  = $this->sourceResolver->resolve($bible);
-        $passage = $source->fetchPassage($bible, $reference);
+        $source = $this->sourceResolver->resolve($bible);
 
-        $passage->setBpid($bpid);
+        $fetchedPassage = $source->fetchPassage(
+            $bible,
+            $reference
+        );
 
-        // 3) Localisation (kept simple for English, but ready for later)
-        $hl = $bible->getLanguageCodeHL() ?: '';
-        if ($hl !== '') {
-            $this->referenceLocaliser
-                ->applyNumeralSet($passage, $hl);
+        // Ensure BPID is assigned
+        $fetchedPassage->setBpid($bpid);
+
+        // Do not save empty passages
+        if ($fetchedPassage->getPassageText() === '') {
+            return $fetchedPassage;
         }
 
-        // 4) Save and return
-        $this->passageRepository->savePassageRecord($passage);
+        // 3) Apply numeral localisation
+        $hl = $bible->getLanguageCodeHL() ?: '';
 
-        return $passage;
+        if ($hl !== '') {
+            $this->referenceLocaliser->applyNumeralSet(
+                $fetchedPassage,
+                $hl
+            );
+        }
+
+        // 4) Save to database
+        $this->passageRepository->savePassageRecord(
+            $fetchedPassage
+        );
+
+        return $fetchedPassage;
     }
 }

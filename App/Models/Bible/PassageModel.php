@@ -22,7 +22,7 @@ class PassageModel implements JsonSerializable
     // Non-nullable strings
     foreach (['bpid','passageText','passageUrl','referenceLocalLanguage'] as $k) {
         if (array_key_exists($k, $data)) {
-            $this->$k = Caster::toString($data[$k]);
+            $this->$k = (string) ($data[$k] ?? '');
         }
     }
 

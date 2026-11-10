@@ -1,84 +1,87 @@
+
 <?php
+
+declare(strict_types=1);
 
 namespace App\Services\BiblePassage;
 
 use App\Configuration\Config;
+use App\Models\Bible\BibleModel;
+use App\Models\Bible\PassageModel;
+use App\Models\Bible\PassageReferenceModel;
 
-/**
- * DbtPassageService returns links to  https://live.bible.is/
-
-*/
-class DbtPassageService extends AbstractBiblePassageService
+final class DbtPassageService implements BiblePassageProviderInterface
 {
-   
-
-   /**
-     * Get the URL for the passage.
-     * Subclasses must implement this method.
-     *
-     * @return string The URL for the passage.
-     */
     /**
-     * Example:https://live.bible.is/bible/MYABJB/LUK/1
+     * Return a Bible.is link for the requested passage.
+     *
+     * This is a link-only provider.
+     * It does not download passage text.
+     *
+     * BPID generation and database operations are handled
+     * by BiblePassageService.
      */
-    public function getPassageUrl(): string
-    {
-        $reference = trim((string) $this->passageReference->getEntry());
-        $version   = trim((string) $this->bible->getExternalId());
+    public function fetchPassage(
+        BibleModel $bible,
+        PassageReferenceModel $reference
+    ): PassageModel {
 
-        if ($reference === '' || $version === '') {
-            throw new InvalidArgumentException(
-                'Missing reference or version.'
+        $passage = new PassageModel();
+
+        // Public Bible.is URL.
+        $passage->setPassageUrl(
+            $this->buildPassageUrl($bible, $reference)
+        );
+
+        // Reference to display when no local-language
+        // book name is available.
+        $passage->setReferenceLocalLanguage(
+            $reference->getEntry()
+        );
+
+        // Intentionally no Bible text.
+        $passage->setPassageText('');
+
+        return $passage;
+    }
+
+    /**
+     * Build the public Bible.is chapter URL.
+     *
+     * Example:
+     * https://live.bible.is/bible/MYABJB/LUK/1
+     */
+    private function buildPassageUrl(
+        BibleModel $bible,
+        PassageReferenceModel $reference
+    ): string {
+
+        $version = trim((string) $bible->getExternalId());
+
+        $book = trim((string) $reference->getBookID());
+
+        $chapter = (int) $reference->getChapterStart();
+
+        if ($version === '' || $book === '' || $chapter <= 0) {
+            throw new \InvalidArgumentException(
+                'Missing Bible.is version, book, or chapter.'
             );
         }
 
-        $baseUrl = Config::get('endpoints.dbt') ?? 'https://live.bible.is';
-        $baseUrl = rtrim((string) $baseUrl, '/');
+        $baseUrl = rtrim(
+            (string) Config::get(
+                'endpoints.dbt',
+                'https://live.bible.is'
+            ),
+            '/'
+        );
 
-        return $baseUrl . '/' . $version . '/' . $reference;
+        return sprintf(
+            '%s/bible/%s/%s/%d',
+            $baseUrl,
+            rawurlencode($version),
+            rawurlencode($book),
+            $chapter
+        );
     }
-
-
-    /**
-     * Get the webpage content for the passage.
-     * Subclasses must implement this method.
-     *
-     * @return  array<string,mixed>|string.
-     */
-     public function getWebPage(): array|string
-     {
-        return ' ';
-     }
-
-    /**
-     * Get the text of the Bible passage.
-     * Subclasses must implement this method.
-     *
-     * @return string The text of the passage.
-     */
-     public function getPassageText(): string
-     {
-        return ' ';
-     }
-
-    /**
-     * Get the local language reference for the passage.
-     * Subclasses must implement this method.
-     *
-     * @return string The local language reference.
-     */
-     public function getReferenceLocalLanguage(): string{
-        $first = $this->webpage[0] ?? null;
-        $book  = is_array($first) ? ($first['book_name_alt'] ?? null) : ($first->book_name_alt ?? null);
-        $verses =  $this->passageReference->getChapterStart().':'
-                . $this->passageReference->getVerseStart().'-'
-                . $this->passageReference->getVerseEnd();
-
-        if ($book) {
-            return $book.' '. $verses;
-               
-        }
-        return $verses;
-     }
-
 }
